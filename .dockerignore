@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Local user data — not part of the image.
+input/
+output/
+*.npy
+*.xlsx
+*.pdf
+*.docx
+*.pptx
+
+# Editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+
+# Already-built artifacts
+*.egg-info/
+build/
+dist/
+
+# git
+.git/
+.gitignore

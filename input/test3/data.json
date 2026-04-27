@@ -1,0 +1,493 @@
+{
+  "questionnaire_title": "ESG Sustainability Disclosure Questionnaire",
+  "items": [
+    {
+      "contextualized_question": "What is the legal name of the reporting organization completing this questionnaire?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Organization Name",
+      "question_number": "R1",
+      "extracted_answer": "Coteccons Construction Joint Stock Company (CÔNG TY CỔ PHẦN XÂY DỰNG COTECCONS)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What reporting period does this submission cover?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Reporting Period",
+      "question_number": "R2",
+      "extracted_answer": "Fiscal year 2024: July 1, 2023 to June 30, 2024",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the full name of the person responsible for this disclosure?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Respondent Name",
+      "question_number": "R3",
+      "extracted_answer": "Dinh Thi Hong Tham",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the job title of the respondent?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Job Title",
+      "question_number": "R4",
+      "extracted_answer": "Information Disclosure Officer",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the contact email for ESG-related inquiries and disclosure?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Email",
+      "question_number": "R5",
+      "extracted_answer": "thamdth@coteccons.vn (Information Disclosure Officer); esgctd@coteccons.vn (ESG Committee)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "On what date is this questionnaire being submitted?",
+      "source_file": "N/A",
+      "question": "Date of Submission",
+      "question_number": "R6",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What is the full legal name of the reporting organization?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Organization legal name",
+      "question_number": "G1",
+      "extracted_answer": "Coteccons Construction Joint Stock Company (Vietnamese: CÔNG TY CỔ PHẦN XÂY DỰNG COTECCONS)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's tax identification number?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Tax identification number",
+      "question_number": "G2",
+      "extracted_answer": "0303443233",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the headquarters address of the organization?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Headquarters address",
+      "question_number": "G3",
+      "extracted_answer": "Coteccons Building, No. 236/6 Dien Bien Phu Street, Ward 17, Binh Thanh District, Ho Chi Minh City, Vietnam",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "On which stock exchange is the organization listed and under what ticker symbol?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Listing information (exchange and ticker)",
+      "question_number": "G4",
+      "extracted_answer": "Ho Chi Minh Stock Exchange (HOSE), ticker symbol CTD, listed in 2010",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the reporting period covered by this sustainability report?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Reporting period",
+      "question_number": "G5",
+      "extracted_answer": "Fiscal year 2024: from July 1, 2023 to June 30, 2024",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Which reporting standards and frameworks does the organization use to prepare its sustainability report?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Reporting standards and frameworks used",
+      "question_number": "G6",
+      "extracted_answer": "GRI Standards, UN 17 Sustainable Development Goals, IFC Environmental and Social Performance Standards, Vietnam State Securities Commission Disclosure Guidelines, Circular No. 155/2015/TT-BTC, ISO 14001:2015, ISO 14064-1:2018, LEED v4",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Who audited the financial statements referenced in this report?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "External financial auditor",
+      "question_number": "G7",
+      "extracted_answer": "Ernst & Young Vietnam Limited",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's charter capital and total assets?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Charter capital and total assets",
+      "question_number": "G8",
+      "extracted_answer": "Charter capital: VND 1,036,332,610,000; Owner's equity: VND 8,591,267,204,834; Total assets: VND 22,868,774,738,132 (as of June 30, 2024)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the main business lines and services of the organization?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Main business activities",
+      "question_number": "G9",
+      "extracted_answer": "Construction and installation of works of all kinds (main); architectural and engineering design consulting; financial trading, investment and real estate; manufacturing of concrete and cement products; specialized construction activities including site preparation, electrical/water/HVAC installation, civil engineering works",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the corporate governance structure responsible for ESG oversight.",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "ESG governance structure",
+      "question_number": "G10",
+      "extracted_answer": "Three-tier ESG governance: (1) Board of Directors with dedicated ESG Committee established Dec 14, 2022 via Resolution 13B/2022/NQ-HDQT, with 10 members; (2) Audit and Risk Committee for risk oversight; (3) ESG Implementation Team established March 15, 2023 with members from corporate affairs, finance, HR, environment, health & safety, security, operations & procurement",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Who chairs the ESG Committee and what is their background?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "ESG Committee chair",
+      "question_number": "G11",
+      "extracted_answer": "Mr. Herwig Guido H. Van Hove, Belgian, born 1969, Master of Business Administration and Master of Applied Economics. Member of Board of Directors since June 30, 2020; Head of ESG Committee since February 27, 2023 (Decision No. 05/2023/NQ-HDQT)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the four core qualities of the organization's corporate governance?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Corporate governance principles",
+      "question_number": "G12",
+      "extracted_answer": "Four qualities: Transparency, Fairness, Responsibility, and Accountability",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Does the organization have a formal Code of Conduct, and how is it disseminated?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Code of Conduct training",
+      "question_number": "G13",
+      "extracted_answer": "Yes. 6,099 hours of Code of Conduct in Business training delivered (6,072 hours in-person, 27 hours online); 99.36% of Coteccons and Unicons employees completed required training and end-of-program exam",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's policy on anti-corruption, bribery, and gifts?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Anti-corruption and anti-bribery policy",
+      "question_number": "G14",
+      "extracted_answer": "Coteccons enforces a strict 'Say No' policy on gifts, flattery, and bribes. The Code of Conduct in Business applies to all employees, subsidiaries, apprentices, interns, volunteers, outsourced personnel, agency employees, consultants, subcontractors, sponsors, and third parties. The company commits to honesty, ethical conduct, and refusal to compromise for short-term interests",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's whistleblowing and grievance mechanism?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Whistleblowing channel",
+      "question_number": "G15",
+      "extracted_answer": "Reporting hotlines published on internal posters: contact@unicons.vn / baocaotuanthu@coteccons.vn, hotline (+84) (28)-3514-33-66 / (+84) (28)-3514-22-77. Channel covers child labor reporting, corruption/bribery reporting, discrimination reporting, and sexual harassment reporting",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the major business and operational risks identified by the organization?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Material risks identified",
+      "question_number": "G16",
+      "extracted_answer": "Key risk categories: (1) Occupational safety risks; (2) Bidding risks (competition, pricing); (3) Related party transaction risks; (4) Legal/regulatory risks; (5) Human resources and benefit policy risks (turnover, brain drain)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's total revenue for the reporting year?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Net revenue",
+      "question_number": "E1",
+      "extracted_answer": "VND 21,045 billion (FY2024), increased 30.8% year-on-year, achieving 105% of the adjusted plan",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the net profit after tax and how does it compare to the previous year?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Net profit after tax",
+      "question_number": "E2",
+      "extracted_answer": "VND 310 billion, increased 358% year-on-year, exceeded plan target by 8% (104% of new target)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the gross profit and gross profit margin?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Gross profit and margin",
+      "question_number": "E3",
+      "extracted_answer": "Gross profit: VND 713 billion (increased 97.2% year-on-year); Gross profit margin: 3.39%",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How much did the organization pay in taxes to the state budget?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Total taxes paid to government",
+      "question_number": "E4",
+      "extracted_answer": "VND 294,638,899,011 in taxes paid to the State budget within the year",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How much was paid in social insurance contributions?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Social insurance payments",
+      "question_number": "E5",
+      "extracted_answer": "VND 132,912,651,366 in Social Insurance payments by the Company and employees",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the market capitalization and equity of the organization?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Market capitalization and equity",
+      "question_number": "E6",
+      "extracted_answer": "Market capitalization: VND 7,005 billion (as of June 30, 2024, increased 38% compared to June 30, 2023); Equity: VND 8,591 billion; Total assets: VND 22,869 billion",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many projects were implemented and what was the bid winning rate?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Project portfolio and bid success rate",
+      "question_number": "E7",
+      "extracted_answer": "66 projects implemented; 60 new winning-bid projects; bid winning rate of 58% (versus historical 20-30%); 41 of 60 new projects via repeat sales; total winning-bid value VND 22,000 billion; backlog VND 30,000 billion",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many suppliers does the organization work with and what is the spending allocation?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Supply chain scale",
+      "question_number": "E8",
+      "extracted_answer": "Approximately 3,500 suppliers across various sectors, both domestic and international. Approximately 2,500 subcontractors, suppliers, and construction teams. Main materials account for 27%-32% of total contract value",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's revenue structure by sector?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Revenue mix by segment",
+      "question_number": "E9",
+      "extracted_answer": "Industrial sector (mostly FDI projects): ~50%; Civil sector: ~45%; Resort tourism sector: ~5%",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's brand value and how has it evolved?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Brand valuation",
+      "question_number": "E10",
+      "extracted_answer": "USD 377-460 million according to Isolated Brand Valuation@ from Brand Equity Check website, a ninefold increase compared to 2015",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What environmental management standards does the organization comply with?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Environmental management standards",
+      "question_number": "EN1",
+      "extracted_answer": "ISO 14001:2015 (Environmental Management Systems); ISO 14064-1:2018 (Greenhouse Gas Inventory); Green building standards: LEED, LOTUS, BREEAM, BCA Green Mark, Green Star, EDGE; Vietnamese Law on Environmental Protection 2020 and related decrees (06/2022/ND-CP, 08/2022/ND-CP, 45/2022/ND-CP, 27/2023/ND-CP)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Does the organization conduct greenhouse gas (GHG) emissions inventory? If so, what scopes are covered?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "GHG inventory scope",
+      "question_number": "EN2",
+      "extracted_answer": "Yes. Since October 2023, GHG inventory follows ISO 14064-1:2018 covering Scope 1 (direct emissions), Scope 2 (indirect emissions from energy), and partial Scope 3 (supply chain). Baseline year: July 2023-June 2024. 100% of Company projects implementing greenhouse gas inventory software. GHG inventory tool available at https://co2.coteccons.vn",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's roadmap toward net zero / emission reduction targets?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Net zero / emission reduction roadmap",
+      "question_number": "EN3",
+      "extracted_answer": "Three-phase ESG roadmap: Launching ESG (2023), Effective ESG Implementation (2024-2025), Industry Leader (2026-2029). Goal SDG13 'Reduce Emissions toward Net Zero' is the central goal. Specific 2025 targets: 100% of construction sites implementing GHG emission reduction plans; 20% increase in trained GHG inventory personnel; 20% increase in suppliers with EPD/LCA certification; 40 additional hectares of afforestation",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What quantifiable emission reductions were achieved through use of green materials?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Emission reductions from green materials",
+      "question_number": "EN4",
+      "extracted_answer": "Use of 132,603 tons of CO2 mineralized concrete (FICO concrete) reduced 1,936 tons CO2 in past fiscal year; fly ash brick reduced 926 tons CO2 (equivalent to 171 tons of oil); green steel accounting for 26% (34,429 tons) across 17 construction sites. The Infiniti project (Riviera Point Phase 3) is first in Vietnam to use CMC, expected to eliminate 2,803 tons embodied carbon equivalent to 46,348 trees over 10 years",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Does the organization use renewable energy in its operations?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Renewable energy use",
+      "question_number": "EN5",
+      "extracted_answer": "Yes. Solar lighting at LEGO Vietnam and Nova World Phan Thiet sites saved average 300-1,000 kW per month, total 11,662 kW in 2023. Solar power systems at Suntory Pepsico and Riviera Point generated 17,597 kW (CO2 emission reduction equivalent to 10.78 tons). 50% of lighting at FDI sites uses solar lights, with plans to increase. Coteccons has partnered with Xanh SM to transition to VinFast electric taxis for employee transportation",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What water management and conservation practices does the organization implement?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Water management practices",
+      "question_number": "EN6",
+      "extracted_answer": "Sustainable water management practices include: low-flow faucets; rainwater harvesting systems; water-efficient landscaping with drought-tolerant plants; water saving and recycling in wheel washing at construction site exits; rainwater collection for dust control; sedimentation pits to collect sludge before pumping wastewater out; HCM headquarters reuses air conditioning wastewater for plant irrigation",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the organization's circular economy and waste management approach.",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Circular economy / 3R approach",
+      "question_number": "EN7",
+      "extracted_answer": "Implements 3R principle (Reduce-Reuse-Recycle) since 2022. Waste classification into 3 categories (dry paper, dry plastic, organic waste) yielded 411 kg dry paper, 507 kg cardboard, 174 kg dry plastic. Transitioned from single-use bottled water to large dispensers and reusable glass cups. 'Our Home' project repurposes leftover paint/cement (121 structures completed). 'Recycle Old Batteries' program collected over 7,000 used batteries in 18 days. Reuses steel and plywood at construction sites. 2025 target: 70% Waste Diversion Rate",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many trees has the organization planted through reforestation programs?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Reforestation/tree planting",
+      "question_number": "EN8",
+      "extracted_answer": "159,986 newly planted trees in reforestation programs total. In FY2024: 21,285 native trees successfully planted, including 10,175 trees (2,175 in Phong Nha-Ke Bang National Park; 8,000 in special-use forest in Thach Hoa commune for Hatinh langur protection). September 2024: additional 11,111 trees planted in Dong Hoa commune (10+ hectares) following GreenUP Marathon",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Does the organization engage in biodiversity conservation activities?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Biodiversity conservation",
+      "question_number": "EN9",
+      "extracted_answer": "Yes. Supports Hatinh Langur Cooperative protecting Trachypithecus Hatinhensis (Primate order, group IB, listed in Vietnam Red Data Book and IUCN Red List as critically rare and endangered). Population has stabilized to over 200 individuals. LEGO factory project: greened 52.02% of total area with local drought-tolerant plants; installed 1,383.79m² green roof system on motorcycle parking. Supports community livelihoods (Solanum procumbens cultivation on 4 hectares with 138,700 plants in Thach Hoa)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Are there any environmental violations or non-compliance incidents during the reporting period?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Environmental violations / non-compliance",
+      "question_number": "EN10",
+      "extracted_answer": "No. The Company did not record any administrative violations or escalate any environmental issues to higher-level authorities during the past year. All projects saw reductions in wastewater generation, noise level, dust concentration, and construction waste. Compliance verified through environmental monitoring by competent third parties and state agency inspections",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many green-certified projects has the organization delivered?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Green-certified projects",
+      "question_number": "EN11",
+      "extracted_answer": "Coteccons has completed 46 out of 305 LEED- and LOTUS-certified projects nationwide, ranking as the construction contractor with the highest number of LEED/LOTUS certified projects in Vietnam. Network of 57 green-certified product suppliers. Notable green projects: LEGO (LEGO Group's first carbon-neutral factory worldwide), Pandora (largest LEED-certified factory in SE Asia), Suntory Pepsico (most advanced green technology in Asia-Pacific)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the total number of direct employees and indirect workers?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Workforce size",
+      "question_number": "S1",
+      "extracted_answer": "Direct employees: 2,398 (Coteccons Group, up from 1,985 on June 30, 2023, including Coteccons, Unicons, Sinh Nam and UG); Workers on construction sites: 30,000 (indirect workforce)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the average revenue per employee?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Revenue per employee",
+      "question_number": "S2",
+      "extracted_answer": "VND 13 billion average revenue per employee at parent company Coteccons",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the gender pay ratio at the organization?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Gender pay equity",
+      "question_number": "S3",
+      "extracted_answer": "Average employee income: VND 33,759,541. Female officers and employees: VND 31,839,265; Male officers and employees: VND 33,942,244. Female-to-male income ratio: 93%",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the employee turnover rate?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Employee turnover rate",
+      "question_number": "S4",
+      "extracted_answer": "16% staff turnover rate, decreased compared to previous year. Most departures are for personal development reasons. Total employee count rose by nearly 20% since the beginning of the year due to active recruitment",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's total safe working hours and occupational safety performance?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Safe working hours",
+      "question_number": "S5",
+      "extracted_answer": "41,625,608 safe working hours across all construction sites of Coteccons Group. 100% of workers participated in safety training programs. 2025 target: achieve LTIFR (Lost Time Injury Frequency Rate) ≤1.5",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many hours of training were provided to employees?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Total training hours",
+      "question_number": "S6",
+      "extracted_answer": "26,326 total training hours conducted within the year. Includes 6,099 hours of Code of Conduct in Business training, 2,164 hours of ESG training, and 1,807 participants in ESG training courses. Online platform Coteccons.edu.vn recorded 14,000 visits and over 1,000 training hours",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many workers received free health check-ups?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Worker health check-ups",
+      "question_number": "S7",
+      "extracted_answer": "11,168 workers provided with free health check-ups during the year. 27,473 workers received gifts and free health check-ups across two 'Build Tet' (Xay Tet) seasons",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the workforce composition by tenure and education?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Workforce composition",
+      "question_number": "S8",
+      "extracted_answer": "By tenure: 43% with over 5 years of seniority; 48% with 0-3 years of experience. By education: more than 84% hold university and postgraduate degrees. Female staff proportion is higher than the construction industry average",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the organization's diversity, equity and inclusion (DEI) policies.",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "DEI policies",
+      "question_number": "S9",
+      "extracted_answer": "Coteccons promotes DEI through: equal/safe working conditions; equitable compensation; protection from harassment/discrimination; respect for cultural diversity of female ethnic minority workers (occupational safety training in accessible languages, culturally sensitive living/resting areas); 'Agile Workplaces' office model in HCMC and Hanoi enabling free movement; 6-color brand identity symbolizing diversity. Strict prohibition of forced labor, child labor, and exploitation. 2025 target: more than 20% of construction sites implementing DEI framework programs",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How does the organization engage with local communities?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Community engagement programs",
+      "question_number": "S10",
+      "extracted_answer": "Multiple community programs: 'Build Tet' (Xay Tet) - directly thanked 27,473 workers across 68 sites with gifts, free health checkups, free haircuts, photographs; 'Our Home' (Nha Minh) - completed 121 structures (cultural houses, schools, healthcare stations, martyrs' cemeteries) using leftover paint sponsored by Tambour, Nippon, Jotun; 'Harvesting the Moon for the Village' - reached 3,500 children in underprivileged areas; 'One Heart Fund' supported 12 cases with VND 603 million; 380 units of blood donated; sponsored Support for Children with Cancer Fund VND 700 million; 1,033 successful eye surgeries via Bringing Light to Poor Patients (VND 826 million since 2017)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What scholarships and educational programs does the organization support?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Scholarships and education support",
+      "question_number": "S11",
+      "extracted_answer": "Total VND 2,025,000,000 in scholarships granted over past 3 years. In FY2024: 45 scholarships to university students plus 55 scholarships to students from remote areas. Comprehensive partnerships with HCMC University of Technology, University of Architecture HCMC, Hanoi University of Civil Engineering supporting research, internships, scholarships, site visits, ESG awareness. 2025 target: additional 250 scholarships to children of workers",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Are there any reported incidents of discrimination or harassment?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Discrimination/harassment incidents",
+      "question_number": "S12",
+      "extracted_answer": "No specific incidents reported. The Company maintains ongoing communication and monitoring through training programs, reporting procedures, and disciplinary actions. Reporting channels include: contact@unicons.vn, baocaotuanthu@coteccons.vn, hotline (+84) (28)-3514-33-66/22-77",
+      "confidence": "MEDIUM"
+    },
+    {
+      "contextualized_question": "Describe the organization's stakeholder engagement approach.",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Stakeholder engagement",
+      "question_number": "S13",
+      "extracted_answer": "Stakeholder consultation procedure: Identify stakeholders → Evaluate priority based on mutual impact → Consult stakeholders → Evaluate, respond, and take appropriate actions. Engages with 8 stakeholder groups: Employees (annual surveys, training, mechanisms for direct discussion); Workers under subcontractors (9,841 group interview questionnaires, 60 in-depth interviews); Clients-Developers; End users; Partners/suppliers/subcontractors; Shareholders/Investors; State Regulators; Community; Media organizations",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What percentage of suppliers comply with ESG / sustainability standards?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Sustainable supply chain",
+      "question_number": "S14",
+      "extracted_answer": "81% of contractors reported having procedures for reducing and recycling wastewater, waste, and hazardous solids; 85% of contractors participating in Coteccons survey comply with these procedures. 53 suppliers identified as meeting green standards with scorecards sent for ESG performance evaluation. 2025 target: transform 20% of supply chain to green standards. Strategic partnerships with FiCO Pan-United Concrete, Keppel Land Vietnam, Faslink, LIXIL Vietnam, Xanh SM",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What awards and recognitions has the organization received for ESG/sustainability performance?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "ESG awards and recognition",
+      "question_number": "S15",
+      "extracted_answer": "Top 50 Corporate Sustainability Awards (CSA) - awarded in two categories: 'E - Minimize Carbon Footprint' and 'G - ESG Leadership' (August 2024); Vietnam Sustainability Index (VNSI) ranking - November 2023 (HOSE evaluating top 20 VN100 stocks for sustainable development); Top 10 Best Workplaces in real estate and construction industry (2023); Top 1 of Top 10 Construction Companies in Vietnam (April 2024); Fortune Southeast Asia 500 (June 2024 - largest Vietnamese construction representative); Top 50 Vietnam The Best (6th consecutive time); Brilliant Rising Unit at WeChoice Awards 2024 (179,152 votes); Top 20 Famous Brands of Vietnam 2024; Top 10 Contractors by BCI Central 2024; 2024 IR Awards Information Disclosure Best Practices",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How does the organization promote ESG awareness and culture internally?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "ESG culture and communication",
+      "question_number": "S16",
+      "extracted_answer": "Communication philosophy 'Future Inside You' built to make ESG visible and meaningful to employees. Activities include: CTD Talk (expert sharing on green construction, future materials, ESG); Coteccons.edu.vn online training platform; Green Uniform from recycled materials (nano fabric and coffee fabric, 25,743 uniforms distributed since 2022, 1,460 in past year); Coteccons Olympic (nearly 2,000 athletes); International Day of Zero Waste 'Clean Environment - Green World' campaign (over 1,000 participants, 651 hours, cleaned 6 tons of waste); Green Day on construction sites every Friday",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What ESG-related strategic partnerships has the organization established?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Strategic ESG partnerships",
+      "question_number": "S17",
+      "extracted_answer": "Key partnerships: FiCO Pan-United Concrete and Keppel Land Vietnam (CO2 mineralized concrete, 3D printing); Faslink (AI-powered fabric recycling - Vietnam's first - reducing water consumption 49%, carbon emissions 59%); Xanh SM (electric taxi transition); LIXIL Vietnam (sustainable supply chain); Schneider Electric (Innovation Summit); Co-organization with Tuoi Tre News, Dong Tam JSC for GreenUP Marathon; Nhan Dan Newspaper for 'Build Tet 2024'. 2025 target: expand 'like-minded' partner network 20-30%; deploy at least 5 development cooperation programs nationwide; have at least 2 collaborative research projects",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the organization's strategic ESG vision and long-term targets through 2029?",
+      "source_file": "ESG-Report-eng_2211.pdf",
+      "question": "Long-term ESG strategy",
+      "question_number": "G17",
+      "extracted_answer": "Three-phase ESG roadmap aligned with 2025-2029 business plan: Phase 1 'Launching ESG' (2023) - strategy, policy framework, governance structure, master plan; Phase 2 'Effective ESG Implementation' (2024-2025) - responsible value chains, KPIs, transparent monitoring/reporting, circular economy projects; Phase 3 'Industry Leader' (2026-2029) - international recognition, brand positioning, ecosystem influence, industry leadership. Five SDG focus areas: SDG13 (Climate Action/Emission Reduction), SDG12 (Responsible Consumption/Circular Economy), SDG8 (Decent Work/Human Development), SDG11 (Sustainable Cities/Communities), SDG17 (Partnerships). Long-term: USD 1 billion capitalization, 30% revenue from new business segments including international",
+      "confidence": "HIGH"
+    }
+  ]
+}

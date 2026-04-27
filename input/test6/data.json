@@ -1,0 +1,293 @@
+{
+  "questionnaire_title": "peakRe",
+  "items": [
+    {
+      "contextualized_question": "What is the full legal name of the reporting entity (the company submitting this ESG disclosure)?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Company legal name",
+      "question_number": "F1",
+      "extracted_answer": "Peak Reinsurance Company Limited",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "In which city and country is the company headquartered?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Headquarters location",
+      "question_number": "F2",
+      "extracted_answer": "Hong Kong",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What year did the company commence operations?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Year of incorporation / commencement of operations",
+      "question_number": "F3",
+      "extracted_answer": "2012",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the primary line of business of the company?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Primary business activity",
+      "question_number": "F4",
+      "extracted_answer": "Property & Casualty (P&C) and Life & Health (L&H) reinsurance",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Who are the principal shareholders of the company and what are their respective ownership percentages?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Ownership / shareholder structure",
+      "question_number": "F5",
+      "extracted_answer": "Fosun International Limited (00656.HK) and Prudential Financial, Inc. own approximately 87% and 13% of Peak Re, respectively",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the company's financial strength rating and from which rating agency?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Financial strength rating",
+      "question_number": "F6",
+      "extracted_answer": "A- by AM Best",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What was the company's reinsurance revenue and net profit for the financial year 2023?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Reporting period financial results",
+      "question_number": "F7",
+      "extracted_answer": "USD1.56 billion and USD200 million",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What reporting period does this ESG disclosure cover?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Reporting period covered",
+      "question_number": "F8",
+      "extracted_answer": "1 January 2023 to 31 December 2023",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Which regulatory authority licenses or supervises the company?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Regulator / supervisory authority",
+      "question_number": "F9",
+      "extracted_answer": "Insurance Authority of Hong Kong",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Is the company a signatory to the UN Principles for Sustainable Insurance (PSI), and if so, since when?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "UNEP FI PSI signatory status",
+      "question_number": "F10",
+      "extracted_answer": "Yes, since 2012",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Has the company signed any local or regional insurance industry climate commitments?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Other climate / sustainability commitments",
+      "question_number": "F11",
+      "extracted_answer": "Yes, the Hong Kong Insurance Industry Climate Charter",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Where does ultimate responsibility for ESG governance sit within the company?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "ESG governance — ultimate accountability",
+      "question_number": "F12",
+      "extracted_answer": "Executive committee, delegated by the Board",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What enterprise risk management model does the company use, and what are its components?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Risk management model",
+      "question_number": "F13",
+      "extracted_answer": "Three Lines of Defence model",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What Board committees support the Board's oversight of ESG and risk-related matters?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Board committees",
+      "question_number": "F14",
+      "extracted_answer": "Three Lines of Defence model",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What was the average Board director attendance rate at quarterly meetings in 2023?",
+      "source_file": "N/A",
+      "question": "Board meeting attendance",
+      "question_number": "F15",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "Did the Board receive ESG-specific training during the reporting period?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Board ESG training",
+      "question_number": "F16",
+      "extracted_answer": "Yes",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What mandatory compliance training topics are provided to employees on a group-wide basis?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Employee compliance training",
+      "question_number": "F17",
+      "extracted_answer": "ESG-specific training",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What ESG screening framework is applied to underwriting and investment decisions?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "ESG screening framework",
+      "question_number": "F18",
+      "extracted_answer": "Three Lines of Defence model",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Which sectors or activities are explicitly excluded from underwriting and investment exposure?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Sector exclusion list",
+      "question_number": "F19",
+      "extracted_answer": "Sectors or activities that are obsolete or harmful to the environment",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What climate-specific underwriting exclusions were enacted in 2023?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Climate / fossil-fuel underwriting exclusions",
+      "question_number": "F20",
+      "extracted_answer": "Sectors or activities that are obsolete or harmful to the environment",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many employees does the company have, and what is the diversity profile of its workforce?",
+      "source_file": "N/A",
+      "question": "Workforce size and diversity metrics",
+      "question_number": "F21",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What approach was used to identify the company's most material ESG topics?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Materiality assessment methodology",
+      "question_number": "F22",
+      "extracted_answer": "Review of our data and processes that would help deepen ESG integration in our underwriting, investment and corporate operations",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the top material ESG topics identified for the company?",
+      "source_file": "N/A",
+      "question": "Top material topics",
+      "question_number": "F23",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "How does the company describe its exposure to physical climate risk and its mitigation approach?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Physical climate risk management",
+      "question_number": "F24",
+      "extracted_answer": "Our sustainability framework, with its top-down approach, allows us to effectively monitor and manage a diverse array of ESG risks",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How does the company describe its exposure to climate transition risk?",
+      "source_file": "ESG-Disclosure-Report-2023.pdf",
+      "question": "Climate transition risk",
+      "question_number": "F25",
+      "extracted_answer": "Our sustainability framework, with its top-down approach, allows us to effectively monitor and manage a diverse array of ESG risks",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the company's Scope 1 and Scope 2 operational greenhouse gas emissions for 2023?",
+      "source_file": "N/A",
+      "question": "Scope 1 & 2 GHG emissions",
+      "question_number": "F26",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What are the company's Scope 3 business travel emissions for 2023?",
+      "source_file": "N/A",
+      "question": "Scope 3 business travel emissions",
+      "question_number": "F27",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "Has the company set quantitative emission reduction or net-zero targets?",
+      "source_file": "N/A",
+      "question": "Emission reduction targets",
+      "question_number": "F28",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What sustainability certifications does the headquarters office hold?",
+      "source_file": "N/A",
+      "question": "Office sustainability certifications",
+      "question_number": "F29",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "Which UN Sustainable Development Goals does the company explicitly align its business with?",
+      "source_file": "N/A",
+      "question": "Aligned UN SDGs",
+      "question_number": "F30",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "Provide examples of the company's sustainable / inclusive insurance products or programmes.",
+      "source_file": "N/A",
+      "question": "Sustainable insurance product examples",
+      "question_number": "F31",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "Has the company issued any catastrophe bonds or insurance-linked securities?",
+      "source_file": "N/A",
+      "question": "Catastrophe bonds / ILS",
+      "question_number": "F32",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What disclosure or reporting frameworks is the company aligning toward?",
+      "source_file": "N/A",
+      "question": "Disclosure framework alignment",
+      "question_number": "F33",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What industry forums, working groups or partnerships does the company participate in on ESG / sustainable finance?",
+      "source_file": "N/A",
+      "question": "Industry engagement and partnerships",
+      "question_number": "F34",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "Provide examples of corporate social responsibility (CSR) and community engagement activities.",
+      "source_file": "N/A",
+      "question": "CSR / community engagement activities",
+      "question_number": "F35",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    },
+    {
+      "contextualized_question": "What is the strategic ESG roadmap or plan for the next 3–5 years?",
+      "source_file": "N/A",
+      "question": "Forward-looking ESG roadmap",
+      "question_number": "F36",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    }
+  ]
+}

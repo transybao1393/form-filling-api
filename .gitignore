@@ -1,0 +1,68 @@
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# Build / packaging
+build/
+dist/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+
+# Test / coverage / type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+
+# --- Pipeline outputs / generated artifacts ---------------------------------
+# `make run` writes everything here.
+output/
+
+# Local job-state directory (default for the API outside Docker).
+.form_pipeline/
+
+# Embeddings / large derived data (RAG-style outputs).
+*.npy
+base_carbone_embeddings.jsonl
+embedding_metadata.json
+
+# Filled / preview artifacts at the repo root if anyone runs the CLI ad-hoc.
+filled.pdf
+filled.docx
+*_preview.png
+debug.png
+
+# --- Secrets / local config -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Editor / OS junk -------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Docker -----------------------------------------------------------------
+# Compose may write logs / state here in some setups.
+docker-compose.override.yml

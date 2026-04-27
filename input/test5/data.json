@@ -1,0 +1,445 @@
+{
+  "questionnaire_title": "ESG / Sustainability Disclosure Questionnaire",
+  "items": [
+    {
+      "contextualized_question": "What is the legal/registered name of the reporting entity?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Reporting entity legal name",
+      "question_number": "F1",
+      "extracted_answer": "Joint Stock Commercial Bank for Foreign Trade of Vietnam (Vietnamese: Ngân hàng Thương mại Cổ phần Ngoại thương Việt Nam).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the trading name / ticker symbol of the entity?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Trading name / ticker",
+      "question_number": "F2",
+      "extracted_answer": "Trading name: Vietcombank. Abbreviation: VCB. Stock ticker: VCB.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the registered headquarters address?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Headquarters address",
+      "question_number": "F3",
+      "extracted_answer": "198 Tran Quang Khai Street, Ly Thai To Ward, Hoan Kiem District, Hanoi, Vietnam. Phone: (84-24) 39343137. Website: www.vietcombank.com.vn.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the reporting period covered by this disclosure?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Reporting period",
+      "question_number": "F4",
+      "extracted_answer": "January 1, 2024 to December 31, 2024 (unless otherwise noted). Scope covers the parent bank, subsidiaries, joint ventures, and affiliates unless otherwise specified.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Which sustainability reporting standards/frameworks does the report follow (e.g., GRI, TCFD, UN SDGs)?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Reporting standards / frameworks referenced",
+      "question_number": "F5",
+      "extracted_answer": "Prepared with reference to the Global Reporting Initiative (GRI) Sustainable Development Reporting Standards and aligned with the United Nations Sustainable Development Goals (SDGs). The bank also aims to adopt TCFD going forward. A GRI content index is provided in Chapter 4.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the entity's charter capital / paid-in capital and number of outstanding shares?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Charter capital and outstanding shares",
+      "question_number": "F6",
+      "extracted_answer": "Charter capital: VND 83,556,750,940,000. Total shares outstanding: 8,355,675,094. Par value: VND 10,000 per share. (Per Notification No. 8288/VCB-CL&TKHĐQT dated May 6, 2025 on the amendment of the Establishment and Operation License.)",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What credit ratings does the entity hold from major international rating agencies (Fitch, Moody's, S&P)?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "International credit ratings",
+      "question_number": "F7",
+      "extracted_answer": "Fitch: Long-term issuer default rating BB+, Standalone viability rating bb-, Outlook stable. Moody's: Long-term issuer rating Ba2, Baseline credit assessment ba3, Outlook stable. S&P Global: Long-term issuer credit rating BB, Standalone credit profile bb-, Outlook stable.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the entity's operational network (number of branches, subsidiaries, representative offices, geographic footprint).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Operational network",
+      "question_number": "F8",
+      "extracted_answer": "As of December 31, 2024: 1 head office, 1 Human Resources Training and Development School, 2 cash processing centres, 131 branches across Vietnam, 5 subsidiaries in Vietnam, 3 overseas subsidiaries, 2 joint ventures, 1 associate company, representative offices in Singapore, the US, and Ho Chi Minh City. Correspondent banking relationships with 1,194 banks across 87 countries and territories. Branch distribution: Hanoi 18 (13.74%), Red River Delta 20 (15.27%), Northern midlands and mountains 10 (7.63%), North and Central Central Region 17 (12.98%), South Central and Central Highlands 14 (10.69%), Ho Chi Minh City 19 (14.5%), Southeast Region 16 (12.21%), Mekong Delta 17 (12.98%).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the entity's overarching sustainable development vision and long-term ESG commitment (e.g., net-zero target year)?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Sustainability vision and net-zero commitment",
+      "question_number": "E1",
+      "extracted_answer": "Vietcombank identifies sustainable development as an overarching goal in its operational strategy and is committed to partnering with the Government and the State Bank of Vietnam in implementing the Green Banking Project, aiming for net-zero emissions by 2050. The bank's stated 2025 vision is to be the number one bank in Vietnam, top 100 in Asia, top 300 financial institutions globally, and top 1,000 listed companies worldwide. By 2030, it targets top 200 financial institutions globally and top 700 listed companies.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the strategic ESG pillars or priority focus areas guiding sustainability efforts?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Strategic ESG pillars",
+      "question_number": "E2",
+      "extracted_answer": "Five key pillars: P1 — Continually strengthening financial capacity to drive stable and sustainable growth while safeguarding interests of customers, shareholders, and partners; P2 — Improving the environmental, social, and governance risk management system; P3 — Establishing robust mechanisms for dialogue and cooperation with customers, investors, and strategic partners to advance ESG practices; P4 — Striving to meet international sustainability standards such as GRI and TCFD; P5 — Promoting green credit, investing in renewable energy, advancing financial inclusion, and developing eco-friendly digital banking solutions.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the governance structure overseeing sustainability/ESG matters (Board, dedicated members, committees, KPIs linked to ESG).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "ESG governance structure and oversight",
+      "question_number": "E3",
+      "extracted_answer": "Five-level governance: General Meeting of Shareholders (highest decision-making body), Board of Directors (BOD), CEO, Supervisory Board, and functional departments. Since 2024, a dedicated BOD member has been appointed to oversee sustainability-related governance, and sustainability indicators have been incorporated into the CEO's KPIs. The Risk Management Committee under the BOD discussed a specialised report on ESG risk management in the banking sector in 2024 and recognised ESG risks as an important consideration going forward.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How does the entity identify and prioritize material ESG topics, and what is the materiality assessment process?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Materiality assessment process",
+      "question_number": "E4",
+      "extracted_answer": "Three-step process: (1) Assess the sustainable development context at Vietcombank — review global and national trends and consider the bank's strategy, performance, governance, and stakeholder concerns; (2) Identify key topics and determine actual and potential impacts using GRI, UN SDGs, VNSI, and Vietnamese legal regulations as references; (3) Assess the significance of impacts on the bank's operations and stakeholders, with the resulting list reviewed and approved by the Executive Board. The list of material topics is reviewed annually.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "List the material ESG topics identified for the reporting period.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "List of material ESG topics",
+      "question_number": "E5",
+      "extracted_answer": "13 material topics identified in 2024. Environment: E1 Promoting green finance, E2 Reducing emissions and managing resources in internal operations. Social: S1 Expanding financial inclusion, S2 Protecting customer rights, S3 Supporting shareholders and investors, S4 Developing sustainable human resources, S5 Contributing to the community. Governance: G1 Contributing to economic development, G2 Transparent and effective corporate governance, G3 Managing environmental and social risks, G4 Digital transformation and innovation, G5 Efficient procurement and supplier management, G6 Combating corruption thoroughly and comprehensively. Top priority topics on the materiality matrix include Digital Transformation and Innovation, Contributions to the Economy, Protecting Customer Rights, and Promoting Green Finance.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Who are the key stakeholders, and what engagement methods/frequency are used for each group?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Stakeholder identification and engagement",
+      "question_number": "E6",
+      "extracted_answer": "Key stakeholders: shareholders/investors, customers, employees, regulatory authorities, community, media, and service providers. Engagement methods include: Annual and Extraordinary General Meetings of Shareholders, quarterly investor meetings, 24/7 customer support hotline, quarterly customer satisfaction surveys, annual Employee Engagement Surveys (EES), annual employee conferences, monthly dialogue with regulators, regular coordination with local authorities for community programs, biannual press updates, and direct meetings with service providers during the bidding/contracting process.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What are the entity's memberships in industry associations or sustainability initiatives?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Association and initiative memberships",
+      "question_number": "E7",
+      "extracted_answer": "Member of the Asia Transition Finance Study Group (ATF SG); National Data Association (NDA) — official member as of January 2025; Asian Bankers Association (ABA); Vietnam Banks Association (VNBA) — one of the 63 official members; international card organisations including VISA, MasterCard, and American Express; National Payment Corporation of Vietnam (NAPAS).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the total outstanding green credit / green loan portfolio and its share of total lending?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Green credit portfolio size and share",
+      "question_number": "ENV1",
+      "extracted_answer": "Outstanding green credit reached approximately VND 47,600 billion as of December 31, 2024, representing 3.3% of Vietcombank's total outstanding credit. The portfolio has grown more than fourfold since 2020, when it stood at over VND 11,765 billion (CAGR 2020–2024 of approximately 42%).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Provide a sectoral breakdown of the green credit portfolio (renewable energy, sustainable transport, water, waste, etc.).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Green credit breakdown by sector",
+      "question_number": "ENV2",
+      "extracted_answer": "Breakdown of outstanding green loans at end of 2024: Renewable and clean energy projects 84.7%; Sustainable water management in urban and rural areas 7.8%; Waste treatment and pollution prevention 3.1%; Sustainable transportation 1.5%; Recycling and resource reuse 1.1%; Other sectors 1.8%. Retail green loans include approximately VND 150 billion for VinFast electric vehicles (4% of retail auto loans), VND 173 billion for solar power investments, and around VND 90 billion for environmentally compliant pig farm investments.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Has the entity issued green bonds, and if so, what is the issuance amount, framework, and use of proceeds?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Green bond issuance and framework",
+      "question_number": "ENV3",
+      "extracted_answer": "On November 14, 2024, Vietcombank successfully issued VND 2,000 billion in green bonds, becoming the first bank in Vietnam to issue green bonds compliant with both Vietnamese regulations and the voluntary Green Bond Principles of the International Capital Market Association (ICMA). The green bond framework was developed in collaboration with the Global Green Growth Institute (GGGI) and rated 'Medium Green' by S&P Global (the second-highest rating on S&P's 'Shades of Green' scale). Proceeds will fund seven sectors: renewable and clean energy, sustainable transportation, water resource management, green buildings, sustainable agriculture/forestry/fisheries and biodiversity conservation, waste management and resource efficiency, and energy efficiency.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "List partnerships with international finance institutions for green/climate-related funding (e.g., JBIC, AFD, KfW, JICA).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "International green finance partnerships",
+      "question_number": "ENV4",
+      "extracted_answer": "USD 500 million green re-lending program from the Japan Bank for International Cooperation (JBIC) to support environmental conservation and climate mitigation. Vietcombank has also engaged with Agence Française de Développement (AFD), Kreditanstalt für Wiederaufbau (KfW), and Japan International Cooperation Agency (JICA) on green credit packages and additional financing opportunities for environmentally friendly businesses and projects.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report total Scope 1, Scope 2, and Scope 3 greenhouse gas emissions (tons CO2 equivalent).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "GHG emissions by Scope (1, 2, 3)",
+      "question_number": "ENV5",
+      "extracted_answer": "2024 emissions (tons CO2e, parent bank only): Scope 1 (fuel consumption) 13,349 (19.02% of total, +9.91% YoY); Scope 2 (electricity consumption) 41,335 (58.89%, +6.65% YoY); Scope 3 (business air travel) 15,501 (22.09%, -18.14% YoY). Total: 70,185 tons CO2e (+0.5% vs 69,839 in 2023). Scope 3 reflects only business air travel; the bank is expanding Scope 3 assessment to include financed emissions from its loan portfolio.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report GHG emissions intensity per employee and per unit of revenue.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Emissions intensity (per employee, per revenue)",
+      "question_number": "ENV6",
+      "extracted_answer": "Per employee 2024: 3.0 tons CO2e (vs 3.1 in 2023, -2.90%) — Scope 1 0.6, Scope 2 1.8, Scope 3 0.7. Per VND billion of revenue 2024: 1.04703 tons CO2e (vs 1.05160 in 2023, -0.43%) — Scope 1 0.19915, Scope 2 0.61663, Scope 3 0.23125.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What emission factors and methodologies are used to calculate GHG emissions?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Emission factor methodology",
+      "question_number": "ENV7",
+      "extracted_answer": "Electricity consumption emission factors based on Vietnam's 2023 national grid emissions data published by the Climate Change Department (Ministry of Natural Resources and Environment) under Official Document No. 1726/BĐKH-PTCBT dated December 3, 2024. Fuel emission factors for gasoline determined per Decision No. 2626/QĐ-BTNMT (October 10, 2022) and Circular No. 17/2022/TT-BTNMT (November 15, 2022). Global Warming Potential (GWP) values calculated over a 100-year timeframe based on the 2021 IPCC Assessment Report.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report total electricity consumption and electricity intensity per unit of revenue.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Electricity consumption and intensity",
+      "question_number": "ENV8",
+      "extracted_answer": "Electricity intensity in 2024: 0.935 kWh per million VND of revenue, up from 0.885 in 2023 (+5.67%), reflecting business expansion. At the Hanoi headquarters (198 Tran Quang Khai), 2024 electricity from EVN totalled 5,537,400 kWh including tenants; mechanical/electrical systems used 1,839,277 kWh and central air conditioning alone used 1,290,550 kWh; energy-efficiency measures (additional VFDs, LED replacements, optimised chiller and ventilation operation) saved 105,189 kWh/year vs 2023, and the building obtained ISO 50001 certification.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report total water consumption and water intensity per unit of revenue.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Water consumption and intensity",
+      "question_number": "ENV9",
+      "extracted_answer": "Water consumption per unit of revenue in 2024: 3,966 m³ per VND billion, down from 4,185 in 2023 (a decrease of 0.22 m³/VND billion or 5.25%). Water source for the Hanoi headquarters and HCMC branch is municipal clean water; no water recycling or reuse currently. A rainwater harvesting initiative for floor cleaning and plant irrigation is planned for implementation from 2026.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe waste management practices and report total domestic and hazardous waste generated.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Waste generation and management",
+      "question_number": "ENV10",
+      "extracted_answer": "At the Hanoi headquarters and HCMC branch combined: domestic waste in 2024 was 344 tons, a 34% decrease vs 2023; sludge waste was 35 m³, an 83% decrease vs 2023. Vietcombank does not generate hazardous waste from production; office and domestic waste is sorted at source, plastic waste bags replaced with reusable plastic bins, single-use items minimised, and printer cartridges/paper/pens reused. Hazardous waste at headquarters is stored in designated marked areas and collected, transported, and disposed of by certified professionals. Wastewater is treated to meet QCVN 14:2008/BTNMT — Column B; an upgraded wastewater treatment system at the headquarters received completion notice 971/TB-TNMT in 2024.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "List green building certifications (e.g., LEED, WELL, ISO 14001/50001) held by the entity's facilities.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Green building / environmental certifications",
+      "question_number": "ENV11",
+      "extracted_answer": "Vietcombank Building at 5 Me Linh Square, District 1, Ho Chi Minh City: LEED Platinum (US Green Building Council, August 30, 2024), WELL Core Gold (International WELL Building Institute), ISO 9001 (quality), ISO 14001 (environmental), ISO 45001 (occupational health and safety), ISO 50001 (energy management) — all granted by BSI (UK) in November 2023; recognised as a 'Green Business' for 2024 by the Ho Chi Minh City People's Committee. Vietcombank Building at 198 Tran Quang Khai, Hanoi: ISO 50001 energy management certification, and second prize in the Ministry of Industry and Trade's 'Energy Efficiency in Construction Works' awards.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Were there any environmental law violations, fines, or penalties during the reporting period?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Environmental compliance and violations",
+      "question_number": "ENV12",
+      "extracted_answer": "In 2024, Vietcombank reported no violations or fines related to non-compliance with environmental laws and regulations. Periodic environmental monitoring at the Hanoi head office (per TCVN 7878-2018) confirmed noise levels meet QCVN 26:2010/BTNMT.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the environmental and social risk management framework integrated into credit / lending operations.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "E&S risk management in lending",
+      "question_number": "ENV13",
+      "extracted_answer": "Vietcombank issued a Credit Risk Management Policy via BOD Decision No. 1162/QĐ-HĐQT-QLRRTD (May 30, 2023) and detailed implementation guidelines via General Director Decision No. 1786/QĐ-VCB-QLRRTD (June 1, 2023), aligned with State Bank of Vietnam Circular No. 17/2022/TT-NHNN. Environmental risk assessments are conducted for all credit proposals related to investment projects, evaluating: (i) compliance with environmental laws; (ii) potential environmental impacts; (iii) discharge, waste management, and other indicators. Borrowers must provide required documentation, and high-risk projects must develop mitigation plans. The framework is applied through assessment, appraisal, approval, and post-lending stages, with system-wide training for business units.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the total number of employees, and what is the gender / age / location breakdown of the workforce?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Workforce composition and diversity",
+      "question_number": "S1",
+      "extracted_answer": "Total employees (consolidated): 24,306. Composition (separate financial statements): gender 61% female / 39% male; position level 18% managerial / 82% professional staff, with 53% of managers being women; age 24% aged 22–30, 43% aged 31–40, 25% aged 41–50, 8% aged 51–60, average age 36.5; location 47% in Hanoi and HCMC, 43% in other Tier II and higher urban areas, 10% in remaining areas. No seasonal labour is employed.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What is the average annual income/compensation per employee, and how does it compare year over year?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Average employee compensation",
+      "question_number": "S2",
+      "extracted_answer": "Consolidated: average annual income per employee (salary, allowances) was VND 454 million (~VND 37.8 million/month), up 1.1% vs 2023. Including bonuses (separate financial statements): average income reached VND 508 million per year (~VND 42.3 million/month), up 1.1% vs 2023. Wages are consistently above the government minimum wage; compensation has fixed (job title/grade) and performance-based components; no gender-specific pay regulations.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What percentage of women hold managerial / leadership positions?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Women in leadership / management",
+      "question_number": "S3",
+      "extracted_answer": "Women account for approximately 61% of total workforce, and 53% of managers are women. At the Head Office, 56% of women — 501 individuals — have been included in the management succession plan for 2021–2026. As of December 31, 2024, there were 132 grassroots-level Committees for the Advancement of Women across the network. The Committee for the Advancement of Women has been in place since May 2005.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the recruitment policy, number of new hires in the year, and policies prohibiting child / forced labour.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Recruitment, child labour and forced labour policies",
+      "question_number": "S4",
+      "extracted_answer": "In 2024, Vietcombank launched over 70 recruitment campaigns (including 11 for branch recruitment) and hired 2,562 new employees. The recruitment policy explicitly prohibits child labour: only individuals with full legal civil capacity may be employed, and all positions require a minimum education level of high school graduation. The bank does not engage in informal employment, forced labour, or coercion; all employees sign labour contracts under Vietnamese Labour Law with full statutory benefits (social, health, unemployment, occupational accident insurance). A standardised labour contract template is applied uniformly. Recognised in the Top 50 Most Preferred Employers and Top 500 Leading Employers in Vietnam for 2022–2024 (ranked 1st in both categories in 2024).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe employee training programs, total training hours, and average training hours per employee.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Training programs and hours per employee",
+      "question_number": "S5",
+      "extracted_answer": "In 2024, Vietcombank conducted 398 in-person training courses (104.7% of plan); 333 of the planned courses were executed (+3.7% vs 2023). Total training participants exceeded 166,000 (+18.7% vs 2023). Average training hours per employee in 2024: 36.1 hours/year overall (above the 35-hour BCG benchmark for 2025); 32.5 hours/year for planned programs (+1.2% vs 2023). Training frequency: 11 sessions per manager (vs 7.28 in 2023) and 7.81 sessions per non-manager (vs 5.7 in 2023). E-learning participation: 25,052 learners in 2020, 76,985 in 2023, 114,283 in 2024 — over 60% of total training instances; 141 digital training modules available. Programs cover Leadership and Management, IT and Digital Transformation, Retail Banking, AWS Cloud, Office 365, cybersecurity, programming, Agile, and 'Coaching in Action'.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What employee benefits are provided beyond statutory requirements (health, life insurance, maternity, retirement)?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Employee benefits beyond statutory minimum",
+      "question_number": "S6",
+      "extracted_answer": "Beyond statutory social, health, unemployment, and labour-accident insurance, Vietcombank provides: annual health check-ups (with specialised exams for female employees), annual health insurance, critical illness insurance, life insurance, maternity support, sick leave benefits, rewards for senior employees, holiday gifts, and scholarships for employees' children with outstanding academic achievements. New benefits in 2024 include a birthday leave/'Happy Day' program and the 'VCB Future Talent Scholarship Program'. The 2024 Collective Labour Agreement adds employer voluntary retirement fund contributions, one day off on birthday, and one paid hour off per week. Female employees receive maternity leave per the Labour Code, can reduce working hours until child reaches 12 months, and have access to breastfeeding rooms; male employees with spouses giving birth also receive support.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What percentage of employees are covered by collective labour agreements?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Collective labour agreement coverage",
+      "question_number": "S7",
+      "extracted_answer": "100% of employees are covered by the collective labour agreement in 2024.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe occupational health and safety practices and report any accidents or H&S incidents.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Occupational health and safety",
+      "question_number": "S8",
+      "extracted_answer": "Practices include annual health check-ups at reputable hospitals, specialised exams for female employees, health and life insurance, medical/health rooms with designated lactation rooms, annual environmental monitoring of working conditions, and regular fire prevention drills. Vault operations staff receive additional benefits (extra annual leave, allowances). In 2024, the Vietcombank Trade Union supported members affected by sickness, injury, or natural disasters; no serious accidents or occupational H&S incidents requiring legal assistance from local trade unions were reported across the entire system.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report the latest Employee Engagement Survey (EES) score and rating.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Employee engagement score",
+      "question_number": "S9",
+      "extracted_answer": "2024 EES score of 96.38%, maintaining an 'Excellent' rating per an independent consulting firm. Over 90% of employees expressed strong pride in working at Vietcombank. EES has been conducted annually since 2016. Awards in 2024 include: 9th consecutive year as Best Banking Workplace in Vietnam (Anphabe); 1st in Top 500 Vietnam Best Employers (VBE500); Top 10 Best Places to Work in Key Economic Sectors (VBW10); Top 50 Most Attractive Employers (MAE50); 5th consecutive year as 'Typical Enterprise for Employees' (Vietnam General Confederation of Labour, MOLISA, VCCI); HR Asia 'Best Workplace in Asia 2024' plus three special awards (Outstanding DEI Policy, Best Employee Care, Sustainable Workplace Environment).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe initiatives to promote financial inclusion (preferential rates, digital channels, support to SMEs / underserved groups).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Financial inclusion initiatives",
+      "question_number": "S10",
+      "extracted_answer": "In 2024, Vietcombank conducted 14 rounds of interest rate cuts and launched 22 preferential loan programs with rates 0.5%–2% below the average market rate. Nearly 110,000 customers benefited from reduced rates, with total supported loan balance exceeding VND 900 trillion (63% of the loan portfolio); total interest support reached approximately VND 6,500 billion. Digital products supporting inclusion include VCB Digibank (with Standard, Priority, YouPro, and An Vui versions), VCB Digibiz (especially for SMEs and business households), VCB Cashup, and VCBCC. By December 31, 2024, over 10 million customers completed biometric authentication via CCCD chip cards or VNeID — the first bank in Vietnam to deploy both methods (since July 1, 2024) — covering 65% of Digibank customers.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What share of retail transactions is processed through digital channels, and what digital banking products are offered?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Digital channel adoption",
+      "question_number": "S11",
+      "extracted_answer": "99% of retail transactions are processed through digital channels and 83% of retail banking services are fully digitalised. New-generation VCB Digibank launched in June 2024 with four personalised versions (Standard, Priority, YouPro, An Vui); over 12 million customers transitioned to it. In 2024 there were 20 updates to VCB Digibank and VCB Digibiz, adding 38 new services and 148 improvements; Digibank now offers ~260 products/services/features and integrates with over 1,700 partners. New payment solutions include VCB Tap to Phone, VietQRPay (domestic + international QR), cross-border QR with Thailand/Laos/Cambodia/China, settlement bank role for the China market, and on-airplane international card payments. AI chatbot VCB DigiBot served on average ~29,000 new customers per day via chatbot channel in 2024.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe customer data protection / information security framework, including certifications (e.g., ISO/IEC 27001, PCI DSS).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Information security and data protection",
+      "question_number": "S12",
+      "extracted_answer": "All information security policies, including those concerning customer information, comply with ISO/IEC 27001 (certified four times: 2014, 2017, 2020, 2023). PCI DSS certification has been maintained since 2020 by the international PCI Security Standards Council. Personal data protection is governed under Decree No. 13/2023/NĐ-CP; the Data and Analytics Center is the central unit responsible bank-wide (Decision No. 1785/QĐ-VCB-TTDL&PT, September 31, 2023). Activities include Data Protection Impact Assessments, cross-border data transfer reports, and issuance of personal data protection terms/agreements. Vietcombank has invested in IT infrastructure including network/security equipment, primary and backup data centers, and a dedicated cybersecurity team.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report customer satisfaction survey results (number of surveys, responses, satisfaction rate).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Customer satisfaction metrics",
+      "question_number": "S13",
+      "extracted_answer": "In 2024, Vietcombank conducted 65 customer satisfaction survey programs across service channels using real-time methods (pop-ups, OTT, QR codes), receiving over 1 million responses, with 94% of customers rating their experience as 'satisfied' or 'very satisfied'. The Customer Support Centre handled approximately 3.5 million customer requests via hotline, website, business email, social media, and digital banking app, with around 3 million handled directly by customer service specialists. The 'Call API' solution received the 'Customer Experience of the Year — Banking Sector' award at the Asian Experience Awards.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report total social welfare / community contributions in the year and over the past five years, broken down by sector (education, healthcare, etc.).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Community contribution amounts",
+      "question_number": "S14",
+      "extracted_answer": "Total social welfare contributions in 2024: VND 570,954 million (~VND 571 billion). Five-year total 2020–2024: VND 2,311,210 million (~VND 2,311 billion). 2024 disbursement by sector (VND million): Education 173,687; Healthcare 90,465; Support for the poor / building charity and solidarity houses 269,237; Gifts for Heroic Vietnamese Mothers and martyrs' relatives 1,848; Others 35,717. By region (VND million): Northwest 301,340; Central Highlands 31,109; Mekong Delta 74,592; Other provinces/cities 163,913.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe key social welfare or charitable programs implemented in the reporting period.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Key community programs",
+      "question_number": "S15",
+      "extracted_answer": "Highlighted 2024 projects include: VND 100 billion donation to the Prime Minister's campaign to eliminate temporary and dilapidated housing for poor households; VND 20 billion to the Central 'For the Poor' Fund; VND 35 billion to build Primary School No. 2 in Rạch Gốc Town, Cà Mau; VND 20 billion for a semi-boarding ethnic minority primary school in Cao Sơn Commune, Lào Cai; VND 7.5 billion for Great Solidarity houses in Bạc Liêu; VND 6 billion for Mỹ Lộc Primary and Secondary School in Thanh Hóa; VND 100 billion toward a hospital in Thanh Hóa (2023–2025); VND 12 billion to upgrade Sơn Ca Island Infirmary on Trường Sa; VND 2 billion for Xanh Pôn Hospital. Other initiatives: 600 students supported with VND 6 billion in scholarships, VND 1 billion for university scholarships, the 'Vững Tương Lai' (Securing the Future) Fund, the 'Vietcombank Run & Share 2024' charity run (15,168 participants raising VND 10.1 billion for the Secure Future Fund), and the 'Vietcombank: Share the Red Drop, Share the Love' blood donation program.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the corporate governance structure (General Meeting of Shareholders, Board, CEO, Supervisory Board, committees).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Corporate governance structure",
+      "question_number": "G1",
+      "extracted_answer": "Governance per the Law on Credit Institutions and the bank's Charter: General Meeting of Shareholders (highest decision-making body), Board of Directors (BOD), CEO, Supervisory Board, and functional departments. Two BOD-level committees: Risk Management Committee and Human Resources Committee. The CEO oversees ten functional divisions including Wholesale Banking, Retail Banking, Capital and Markets, Finance, IT & Digital Transformation, HR, Operations, Processing, Supporting, Risk Management, and Legal & Compliance. The Supervisory Board oversees the Operations Supervision Department and Internal Audit Department.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "How many members serve on the Board of Directors, and how many are independent / non-executive?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Board composition (size, independence)",
+      "question_number": "G2",
+      "extracted_answer": "As of December 31, 2024, the BOD had 9 members: Chairman Mr. Nguyễn Thanh Tùng, Mr. Đỗ Việt Hùng, Mr. Nguyễn Mạnh Hùng, Mr. Shojiro Mizoguchi (also Deputy General Director), Mr. Nguyễn Mỹ Hào (resigned effective November 1, 2024 to retire), Mr. Hồng Quang (Director of HR Division), Mr. Vũ Viết Ngoạn (Independent member), Mrs. Nguyễn Thị Kim Oanh, and Mr. Nguyễn Tuấn Anh. The Board includes 1 independent member and 5 non-executive members, with diversity in gender, expertise, and experience. The Supervisory Board, elected by the GMS, has 5 members and operates independently from the BOD and Executive Board. The independent BOD member attended 17 of 54 plenary sessions in 2024 (100% participation rate of meetings attended).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What committees report to the Board (e.g., Risk Management Committee, Human Resources Committee), and what are their roles?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Board committees and remits",
+      "question_number": "G3",
+      "extracted_answer": "Two committees under the BOD: the Risk Management Committee and the Human Resources Committee, established in compliance with State Bank of Vietnam regulations. The Risk Management Committee comprises a head (BOD member responsible for risk management), other BOD members including independent members, and an Executive Board member; more than half of voting members are non-executive. In 2024, it held four regular meetings, including a specialised report on ESG risk management, and reviewed regional banks' practices, recognising ESG risks as an important consideration. Detailed committee activities are published in the Annual Report and AGM materials.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe how Board remuneration is determined, approved, and disclosed.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Board remuneration policy",
+      "question_number": "G4",
+      "extracted_answer": "BOD remuneration is reviewed via a proposal approved annually by the General Meeting of Shareholders. At the 2024 AGM, shareholders approved a maximum remuneration of 0.15% of consolidated after-tax profit for the BOD, conditional on achieving the assigned consolidated pre-tax profit target. Detailed remuneration for each Board member is presented separately in the audited financial statements and the bank's annual report, both reviewed by the Supervisory Board and approved at the GMS.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the conflict of interest policy and controls over related-party transactions.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Conflict of interest and related-party policy",
+      "question_number": "G5",
+      "extracted_answer": "Internal Governance Regulations cover: disclosure of relevant interests by BOD/Supervisory Board/Executive Board members per the Law on Enterprises; restrictions on use of internal information for personal gain; strict approval process for related-party transactions to ensure they are market-based, transparent, and fair; voting restrictions preventing BOD members from voting on contracts/transactions benefitting them or related parties; and measures against abuse of authority including price controls and contracts that could lead to capital or asset losses. Related-party transactions are approved by the GMS or BOD depending on transaction value, fully disclosed on Vietcombank's website and the Securities Commission/Stock Exchange disclosure channels, and reported in financial and governance reports.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the internal control system, internal audit function, and reporting lines.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Internal control and internal audit",
+      "question_number": "G6",
+      "extracted_answer": "Internal Audit Department established in 2005, reporting to the Supervisory Board which issues internal audit policies, regulations, and processes and determines structure/staffing. Functions: (i) review and independently assess the internal control system's completeness, appropriateness, effectiveness, and efficiency, and compliance with internal mechanisms, recommending improvements and detecting violations; (ii) advise on developing the internal control system while maintaining independence and objectivity. In 2024, the Operations Supervision Department conducted four thematic reviews (two oversight, one appraisal, one inspection report) plus reports under SBV Official Letter No. 571; the Internal Audit Department audited 29 units/topics. The Supervisory Board head is not a BOD member and operates independently.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the anti-corruption / anti-bribery framework, training, and number of confirmed corruption incidents in the year.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Anti-corruption framework and incidents",
+      "question_number": "G7",
+      "extracted_answer": "Vietcombank has issued and enforced internal regulations, codes of conduct, and professional ethics guidelines uniformly across the entire banking system. In 2024, no instances of corruption were identified or reported, as confirmed through internal inspection and audit processes, as well as audits and inspections by the Government Inspectorate, the State Audit Office, and the State Bank of Vietnam. The Code of Conduct and Professional Ethics applies to all staff, partners providing services with employees on Vietcombank premises, and 100%-owned subsidiaries; violations are handled per internal disciplinary regulations and applicable law.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the procurement policy, supplier selection criteria, and supplier ESG screening practices.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Procurement and supplier ESG management",
+      "question_number": "G8",
+      "extracted_answer": "Centralised procurement governed by Vietcombank's updated Procurement Procedures (issued June 1, 2024). In 2024, 661 domestic bidding packages were conducted (~99% of all procurement packages), with all winning bidders being domestic suppliers. Selection follows competition, fairness, transparency, economic efficiency, reasonableness, and cost savings. Supplier criteria include environmental and social standards, product quality, consumer rights protection, business ethics, and conditional business requirements. Bidder evaluation covers financial capacity, profitability, tax obligations (no tax arrears), personnel qualifications, and strict non-use of child labour. Contract management covers progress, quality, cost, warranty/maintenance. In 2024, Vietcombank began building a centralised supplier database segmented by goods/service categories.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Report key financial performance metrics (total assets, outstanding loans, customer deposits, pre-tax profit, taxes paid).",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Key economic / financial performance",
+      "question_number": "G9",
+      "extracted_answer": "Year-end 2024: Total assets exceeded VND 2 quadrillion (+13% YoY). Outstanding loans VND 1.46 quadrillion (+14% YoY, within SBV credit growth cap). Total customer deposits over VND 1.52 quadrillion (+8% YoY). On-balance-sheet bad debt VND 14,143 billion with NPL ratio 0.97%. Risk provisioning VND 31,429 billion; bad debt coverage ratio 222% (one of the highest among major Vietnamese banks). Consolidated pre-tax profit VND 42,236 billion (+2% YoY). Taxes and fees paid to State budget exceeded VND 12,000 billion (largest contribution among listed companies). Market capitalisation ~USD 20 billion — among the world's top 100 listed banks by market value in 2024. Since Vietnam regained ODA access, Vietcombank has handled financing for over 300 ODA-funded projects totalling nearly USD 30 billion.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "Describe the digital transformation strategy, R&D / technology investment, and key innovation initiatives.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Digital transformation and R&D investment",
+      "question_number": "G10",
+      "extracted_answer": "Digital Transformation Strategy through 2025 with vision to 2030, supported by a top-tier international consultant; established Digital Banking Center and Data & Analytics Center. R&D spending in 2024: VND 1,580 billion (+48.9% vs VND 1,061 billion in 2023). Ratio of investment in technology innovation to after-tax profit: 4.77% (vs 3.26% in 2023). Innovation Centre established in March 2025 with an Innovation Strategy Steering Committee and Innovation Maturity Assessment Project; 'Innovation Strategy Development' workshop held for 550 staff in July 2024; partnership with Vietnam–Singapore Friendship Association to support social enterprises. The 'VCB Digibank New Interface' was ranked among the Top 10 Outstanding Innovations at the 'Innovation for Business Development' Award (3rd edition).",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "What information disclosure channels are used to communicate with shareholders and investors, and what is the frequency of GMS / investor meetings?",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "Disclosure and investor relations practices",
+      "question_number": "G11",
+      "extracted_answer": "In 2024, Vietcombank conducted 1 Annual GMS (April), 1 Extraordinary GMS (August), 4 quarterly business results announcements, and 53 meetings with 660 domestic and international investors and analysts; participated in 12 investor events (4 in Vietnam, 8 in Singapore, Hong Kong, Seoul, etc.); engaged with Moody's, Fitch, and S&P. Disclosure channels: dedicated IR section on the website (https://www.vietcombank.com.vn/vi-VN/Nha-dau-tu) in Vietnamese and English, State Securities Commission and Stock Exchange portals, Ministry of Planning and Investment portal. Contact: +84-24-39343137 (Ext. 1841) / ir@vietcombank.com.vn. GMS materials are published at least 10 days before meetings; nominee details (age, gender, education, qualifications, experience, independence) are disclosed in advance.",
+      "confidence": "HIGH"
+    },
+    {
+      "contextualized_question": "List notable ESG, governance, or sustainability awards received during the reporting period.",
+      "source_file": "EN_VCB_ESG_2024_2505019.pdf",
+      "question": "ESG / sustainability awards and recognitions",
+      "question_number": "G12",
+      "extracted_answer": "2024 awards include: Top 20 Vietnam Sustainability Index (VNSI) by HOSE; Vietnam's Most Valuable Banking Brand (Forbes Vietnam, USD 2.04 billion brand value per Brand Finance); 9th consecutive 'Vietnam Value' (Vietnam National Brand Council); Strongest Bank in Vietnam (The Asian Banker, 7th time); Top 50 Best Listed Companies (Forbes Vietnam, 12th consecutive); Most Reputable Commercial Bank (Vietnam Report); Risk Management Initiative of the Year (Asian Banking & Finance); Top 10 Most Innovative and Efficient Businesses 2024 (Viet Research & Báo Đầu tư); Best Asset Management and Credit Card Services and Customer Experience of the Year (The Asian Banker / The Asian Business Review); Outstanding Digital Bank 2024 and Bank for SMEs (IDG); Best FXall Taker (LSEG); Sao Khuê 2024 Awards (VINASA); Best Place to Work in Asia 2024 (HR Asia, all four categories including Sustainable Workplace Environment); Vietnam's Best Banking Workplace (Anphabe, 9th consecutive); Best Digital Bank in Vietnam (The Asian Banker); Top IT Adoption Enterprise (MIC).",
+      "confidence": "HIGH"
+    }
+  ]
+}
