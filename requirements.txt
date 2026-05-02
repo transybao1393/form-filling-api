@@ -28,3 +28,8 @@ arq>=0.26.0
 
 # polished /scalar API reference page
 scalar-fastapi>=1.0.0
+
+# test runner — used by `docker compose run --rm api pytest tests/`. Small
+# (~5 MB), kept in the prod image so tests run inside the same image that's
+# deployed (no separate test image, no venv).
+pytest>=8.0.0

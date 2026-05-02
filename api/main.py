@@ -26,6 +26,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from scalar_fastapi import get_scalar_api_reference
 
 from . import config, job_store, ollama_client
+from .file_validation import (
+    JSON_ONLY,
+    MaxBodySizeMiddleware,
+    PDF_ONLY,
+    PDF_OR_DOCX,
+    QUESTIONNAIRE_SUFFIXES,
+    REFERENCE_SUFFIXES,
+    validate_upload,
+)
 from .schemas import (
     HealthResponse,
     JobStatusResponse,
@@ -128,6 +137,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Reject oversized request bodies BEFORE multipart parsing — defends against
+# OOM from a hostile upload. Per-file fine-grained checks still run inside
+# each endpoint via validate_upload().
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=config.MAX_REQUEST_BYTES)
+
 
 # --------------------------------------------------------------------------- #
 # Endpoints
@@ -170,7 +184,8 @@ async def scalar_reference():
     ),
     responses={
         202: {"description": "Job accepted and queued"},
-        415: {"description": "Unsupported file type (raised by worker, not at submit)"},
+        413: {"description": "Upload exceeds size limit"},
+        415: {"description": "Unsupported file type"},
     },
 )
 async def submit_job(
@@ -185,6 +200,23 @@ async def submit_job(
         default=None, description="Optional title override"
     ),
 ) -> JobSubmitResponse:
+    validate_upload(
+        questionnaire_file,
+        allowed_suffixes=QUESTIONNAIRE_SUFFIXES,
+        label="questionnaire_file",
+    )
+    validated_refs: list[UploadFile] = []
+    for i, ref in enumerate(reference_files):
+        # Skip placeholder uploads (Swagger sometimes posts an empty entry).
+        if not ref.filename:
+            continue
+        validate_upload(
+            ref,
+            allowed_suffixes=REFERENCE_SUFFIXES,
+            label=f"reference_files[{i}]",
+        )
+        validated_refs.append(ref)
+
     job_id = uuid4().hex
     q_name = Path(questionnaire_file.filename or "questionnaire.bin").name
 
@@ -196,9 +228,7 @@ async def submit_job(
 
     ref_names: list[str] = []
     seen: set[str] = set()
-    for upload in reference_files:
-        if not upload.filename:
-            continue
+    for upload in validated_refs:
         name = _dedup_name(Path(upload.filename).name, seen | {q_name})
         _save_upload(upload, uploads / name)
         seen.add(name)
@@ -338,13 +368,15 @@ async def fill_form(
             detail=f"format must be one of {sorted(_FILL_FORMAT_OPTIONS)}, got {format!r}",
         )
 
+    validate_upload(form_file, allowed_suffixes=PDF_OR_DOCX, label="form_file")
+    validate_upload(data_file, allowed_suffixes=JSON_ONLY, label="data_file")
+    if answers_file and answers_file.filename:
+        validate_upload(
+            answers_file, allowed_suffixes=JSON_ONLY, label="answers_file",
+        )
+
     form_name = Path(form_file.filename or "form.pdf").name
     suffix = Path(form_name).suffix.lower()
-    if suffix not in {".pdf", ".docx"}:
-        raise HTTPException(
-            status_code=415,
-            detail=f"form_file must be .pdf or .docx, got {suffix or '(no extension)'}",
-        )
 
     # The pipeline writes intermediate files (fields.json, etc.) into a workdir
     # and the final filled artifact alongside. We use a TemporaryDirectory so
@@ -424,6 +456,220 @@ async def fill_form(
 
 
 # --------------------------------------------------------------------------- #
+# Sync /to-acroform — convert a PDF to editable AcroForm
+# --------------------------------------------------------------------------- #
+
+@app.post(
+    "/to-acroform",
+    tags=["fill-form"],
+    summary="Convert a PDF to an editable AcroForm — synchronous",
+    description=(
+        "Returns an AcroForm PDF where every detected field is an editable "
+        "widget. Reviewers can fix wrong answers inline in any PDF viewer "
+        "instead of re-running the pipeline.\n\n"
+        "- `form_file` (required) — PDF only.\n"
+        "- `data_file` (optional) — `data.json` in flat / flat-list / nested "
+        "format. When supplied, widgets are pre-populated from it.\n"
+        "- `answers_file` (optional) — flat `{question_id: answer}` JSON for "
+        "nested data.\n"
+        "- `format` (optional) — `flat | flatlist | nested` override.\n\n"
+        "If the input PDF already has an AcroForm, the endpoint takes the "
+        "fast path: no detection, no injection. The response includes "
+        "`X-Acroform-Source: existing | injected` so the caller can tell "
+        "which path ran. Text already drawn on the page (e.g. from a prior "
+        "`/fill-form` overlay) is **carried over** into the widget defaults "
+        "so an overlay-filled PDF becomes editable again."
+    ),
+    responses={
+        200: {
+            "description": "AcroForm PDF",
+            "content": {"application/pdf": {}},
+        },
+        400: {"description": "Invalid format option"},
+        415: {"description": "Input is not a PDF"},
+    },
+)
+async def to_acroform(
+    form_file: UploadFile = File(
+        ..., description="PDF to convert to AcroForm"
+    ),
+    data_file: UploadFile | None = File(
+        default=None,
+        description="Optional data.json (flat / flatlist / nested)",
+    ),
+    answers_file: UploadFile | None = File(
+        default=None,
+        description="Optional flat {question_id: answer} for nested data",
+    ),
+    format: str | None = Form(
+        default=None, description="Optional format override: flat | flatlist | nested"
+    ),
+) -> FileResponse:
+    if format is not None and format not in _FILL_FORMAT_OPTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"format must be one of {sorted(_FILL_FORMAT_OPTIONS)}, got {format!r}",
+        )
+
+    validate_upload(form_file, allowed_suffixes=PDF_ONLY, label="form_file")
+    if data_file and data_file.filename:
+        validate_upload(
+            data_file, allowed_suffixes=JSON_ONLY, label="data_file",
+        )
+    if answers_file and answers_file.filename:
+        validate_upload(
+            answers_file, allowed_suffixes=JSON_ONLY, label="answers_file",
+        )
+
+    form_name = Path(form_file.filename or "form.pdf").name
+
+    tmp = tempfile.mkdtemp(prefix="to-acroform-")
+    tmp_path = Path(tmp)
+    try:
+        from acroform_writer import (
+            count_acroform_fields,
+            extract_carry_over_values,
+            fill_existing_acroform,
+            has_acroform,
+            inject_acroform_widgets,
+        )
+        from starlette.background import BackgroundTask
+
+        cleanup = BackgroundTask(shutil.rmtree, tmp, ignore_errors=True)
+        src = tmp_path / form_name
+        _save_upload(form_file, src)
+
+        # ---- (1) fast path: input already has AcroForm widgets ------------
+        if has_acroform(src):
+            if data_file is None or not data_file.filename:
+                # No data → return the input unchanged.
+                log.info("to_acroform: %s already AcroForm; returning as-is", form_name)
+                return FileResponse(
+                    path=str(src),
+                    media_type="application/pdf",
+                    filename="acroform.pdf",
+                    headers={
+                        "X-Acroform-Source": "existing",
+                        "X-Fields-Total": str(count_acroform_fields(src)),
+                        "X-Fields-Filled": "0",
+                        "X-Fields-Carried-Over": "0",
+                    },
+                    background=cleanup,
+                )
+
+            # AcroForm + data → still need detect+adapter to map question
+            # text in data.json onto widget names; the savings vs the slow
+            # path is that we don't inject new widgets.
+            from field_detector import detect_fields_to_json as _detect
+            from field_normalizer import enrich_json as _normalize_fields
+
+            fields_raw = tmp_path / "fields.json"
+            fields_norm = tmp_path / "fields_normalized.json"
+            await asyncio.to_thread(_detect, str(src), fields_raw)
+            await asyncio.to_thread(_normalize_fields, fields_raw, fields_norm)
+            import json as _json
+            existing_fields = _json.loads(fields_norm.read_text())["fields"]
+
+            user_data = await asyncio.to_thread(
+                _build_filler_data,
+                src, data_file, answers_file, format, tmp_path,
+                fields=existing_fields,
+            )
+
+            out = tmp_path / "acroform.pdf"
+            report = await asyncio.to_thread(
+                fill_existing_acroform, src, existing_fields, user_data, out,
+            )
+            log.info(
+                "to_acroform: %s already AcroForm; filled %d/%d native widgets",
+                form_name, report["num_filled"], report["num_fields"],
+            )
+            return FileResponse(
+                path=str(out),
+                media_type="application/pdf",
+                filename="acroform.pdf",
+                headers={
+                    "X-Acroform-Source": "existing",
+                    "X-Fields-Total": str(report["num_fields"]),
+                    "X-Fields-Filled": str(report["num_filled"]),
+                    "X-Fields-Carried-Over": "0",
+                },
+                background=cleanup,
+            )
+
+        # ---- (3) slow path: detect, optionally fill, inject widgets -------
+        from field_detector import detect_fields_to_json
+        from field_normalizer import enrich_json
+
+        fields_raw = tmp_path / "fields.json"
+        fields_norm = tmp_path / "fields_normalized.json"
+        try:
+            await asyncio.to_thread(detect_fields_to_json, str(src), fields_raw)
+            await asyncio.to_thread(enrich_json, fields_raw, fields_norm)
+        except Exception as e:
+            log.warning("to_acroform: detection failed for %s: %s", form_name, e)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"could not parse PDF for field detection: {type(e).__name__}: "
+                    f"{str(e)[:200]}"
+                ),
+            ) from e
+
+        import json as _json
+        fields = _json.loads(fields_norm.read_text())["fields"]
+        if not fields:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "no fields detected — confirm the PDF has a text layer "
+                    "(not a scan)."
+                ),
+            )
+
+        user_data: dict | None = None
+        if data_file is not None and data_file.filename:
+            user_data = await asyncio.to_thread(
+                _build_filler_data,
+                src, data_file, answers_file, format, tmp_path,
+                fields=fields,
+            )
+
+        carry_over = await asyncio.to_thread(
+            extract_carry_over_values, str(src), fields,
+        )
+
+        out = tmp_path / "acroform.pdf"
+        report = await asyncio.to_thread(
+            inject_acroform_widgets, str(src), fields, user_data, carry_over, out,
+        )
+
+        log.info(
+            "to_acroform: %s injected %d widgets (filled=%d, carried_over=%d)",
+            form_name, report["num_fields"], report["num_filled"],
+            report["num_carried_over"],
+        )
+        return FileResponse(
+            path=str(out),
+            media_type="application/pdf",
+            filename="acroform.pdf",
+            headers={
+                "X-Acroform-Source": "injected",
+                "X-Fields-Total": str(report["num_fields"]),
+                "X-Fields-Filled": str(report["num_filled"]),
+                "X-Fields-Carried-Over": str(report["num_carried_over"]),
+            },
+            background=cleanup,
+        )
+    except HTTPException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+
+
+# --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
 
@@ -442,3 +688,86 @@ def _dedup_name(name: str, taken: set[str]) -> str:
     while f"{stem}-{i}{suffix}" in taken:
         i += 1
     return f"{stem}-{i}{suffix}"
+
+
+def _build_filler_data(
+    source_pdf: Path,
+    data_upload: UploadFile,
+    answers_upload: UploadFile | None,
+    format_override: str | None,
+    tmp_dir: Path,
+    *,
+    fields: list[dict] | None,
+) -> dict:
+    """Mirror of run_pipeline.run()'s format-detect + adapter-dispatch.
+    Returns a {canonical_key: value} dict ready for AcroForm widget injection.
+
+    `fields` is optional — when None we run detection + normalization
+    ourselves (used on the AcroForm fast path where the writer doesn't need
+    the field list). When supplied we reuse what the caller already produced.
+    """
+    import json as _json
+    from run_pipeline import (
+        _looks_like_flatlist,
+        detect_format,
+        detect_question_answer_keys,
+    )
+
+    data_path = tmp_dir / Path(data_upload.filename or "data.json").name
+    _save_upload(data_upload, data_path)
+
+    answers_path: Path | None = None
+    if answers_upload and answers_upload.filename:
+        answers_path = tmp_dir / Path(answers_upload.filename).name
+        _save_upload(answers_upload, answers_path)
+
+    user_data_raw = _json.loads(data_path.read_text())
+    fmt = format_override or detect_format(user_data_raw)
+
+    if fmt == "flat":
+        return {k: v for k, v in user_data_raw.items() if not k.startswith("_")}
+
+    # flatlist / nested both need the (enriched) detected fields.
+    if fields is None:
+        from field_detector import detect_fields_to_json
+        from field_normalizer import enrich_json
+
+        fields_raw = tmp_dir / "fields.json"
+        fields_norm = tmp_dir / "fields_normalized.json"
+        detect_fields_to_json(str(source_pdf), fields_raw)
+        enrich_json(fields_raw, fields_norm)
+        fields = _json.loads(fields_norm.read_text())["fields"]
+    else:
+        fields_norm = tmp_dir / "fields_normalized.json"
+        fields_norm.write_text(_json.dumps({"fields": fields}, indent=2))
+
+    fields_enriched = tmp_dir / "fields_enriched.json"
+
+    if fmt == "flatlist":
+        from flatlist_adapter import build_flat_user_data, enrich_labels_from_left
+        enrich_labels_from_left(str(source_pdf), fields_norm, fields_enriched)
+        enriched_fields = _json.loads(fields_enriched.read_text())["fields"]
+        is_fl, _, items = _looks_like_flatlist(user_data_raw)
+        q_key, cq_key, a_key = detect_question_answer_keys(items)
+        flat, _diag = build_flat_user_data(
+            enriched_fields, items,
+            question_key=q_key, contextualized_key=cq_key, answer_key=a_key,
+        )
+        return flat
+
+    if fmt == "nested":
+        from questionnaire_adapter import (
+            build_flat_user_data,
+            enrich_labels_with_questions,
+        )
+        enrich_labels_with_questions(str(source_pdf), fields_norm, fields_enriched)
+        enriched_fields = _json.loads(fields_enriched.read_text())["fields"]
+        overrides = None
+        if answers_path and answers_path.exists():
+            overrides = _json.loads(answers_path.read_text())
+        flat, _diag = build_flat_user_data(
+            enriched_fields, user_data_raw, question_to_answer=overrides,
+        )
+        return flat
+
+    raise ValueError(f"unknown format: {fmt}")

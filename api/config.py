@@ -44,3 +44,13 @@ JOBS_DIR: Path = Path(os.getenv("JOBS_DIR", "~/.form_pipeline/jobs")).expanduser
 
 # Garbage-collect job directories older than this. Default: 7 days.
 JOB_TTL_HOURS: int = int(os.getenv("JOB_TTL_HOURS", "168"))
+
+# --- file upload limits ----------------------------------------------------
+# Hard global cap on a single HTTP request body, enforced by middleware as
+# soon as the Content-Length header arrives. Defends against OOM from large
+# multipart uploads. 100 MB default — bump for image-heavy use cases.
+MAX_REQUEST_BYTES: int = int(os.getenv("MAX_REQUEST_BYTES", str(100 * 1024 * 1024)))
+
+# Default per-file size cap (MB) when an endpoint doesn't override it.
+# Most endpoints take a few-MB form + smaller JSON, so 50 MB is generous.
+MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "50"))

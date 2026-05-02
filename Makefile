@@ -1,17 +1,17 @@
 # Form Field Detection & Filling Pipeline
 #
-# Folder convention:
-#   input/<name>/
-#     *.pdf              # the form (any filename)
-#     data.json          # flat, flat-list, or nested JSON (auto-detected)
-#     answers.json       # optional: {question_id: answer} for nested schemas
+# === Docker workflow (recommended — runs the API stack and tests inside containers) ===
+#   make docker-setup     One-time setup: verify Docker + Ollama, pull qwen3:8b, build image.
+#   make docker-up        Start redis + api + worker, then run the test suite to verify.
+#   make docker-down      Stop the stack (preserves the jobs volume).
+#   make docker-logs      Tail api + worker logs.
+#   make docker-test      Re-run the test suite without restarting.
 #
-#   output/<name>/     # all generated files land here
-#
-# Usage:
+# === Host CLI workflow (legacy — runs run_pipeline.py via .venv) ===
 #   make setup
 #   make run NAME=<name>          # single command — auto-detects format
 #   make list                     # list all available NAMEs
+# Folder convention for the CLI: input/<name>/{*.pdf, data.json, answers.json?} → output/<name>/
 
 # ---- Config ----------------------------------------------------------------
 
@@ -40,7 +40,8 @@ PIP       := $(VENV)/bin/pip
 .PHONY: help setup check-name check-pdf check-data ensure-out-dir \
         run detect normalize fill \
         visualize template preview \
-        list clean clean-all distclean
+        list clean clean-all distclean \
+        docker-setup docker-up docker-down docker-logs docker-test
 
 # ---- Sanity checks ---------------------------------------------------------
 
@@ -176,3 +177,58 @@ clean-all:
 
 distclean: clean-all
 	rm -rf $(VENV)
+
+# ---- Docker workflow (the API + arq worker + redis stack) ------------------
+#
+# Two main targets:
+#   make docker-setup    one-time: verify Docker + Ollama, pull model, build image
+#   make docker-up       start the stack and run tests inside the api container
+#
+# Plus convenience: docker-down, docker-logs, docker-test.
+
+docker-setup:
+	@command -v docker >/dev/null 2>&1 \
+	  || { echo "ERROR: install Docker first (https://docs.docker.com/get-docker/)."; exit 1; }
+	@docker compose version >/dev/null 2>&1 \
+	  || { echo "ERROR: docker compose plugin not found."; exit 1; }
+	@command -v ollama >/dev/null 2>&1 \
+	  || { echo "ERROR: install Ollama first (https://ollama.com)."; exit 1; }
+	@curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 \
+	  || { echo "ERROR: Ollama not reachable at :11434."; \
+	       echo "  Make sure Ollama listens on 0.0.0.0 so containers can reach it:"; \
+	       echo "    launchctl setenv OLLAMA_HOST 0.0.0.0:11434   # macOS"; \
+	       echo "    osascript -e 'tell app \"Ollama\" to quit' && open -a Ollama"; \
+	       exit 1; }
+	@ollama list 2>/dev/null | awk 'NR>1 {print $$1}' | grep -q '^qwen3:8b$$' \
+	  || ollama pull qwen3:8b
+	docker compose build
+	@echo ""
+	@echo "Setup complete. Next: make docker-up"
+
+docker-up:
+	docker compose up -d
+	@printf "Waiting for /healthz "
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  curl -sf http://localhost:8000/healthz >/dev/null 2>&1 && { echo " ok"; break; }; \
+	  printf "."; sleep 2; \
+	done
+	@$(MAKE) docker-test
+	@echo ""
+	@echo "Stack ready:"
+	@echo "  Scalar API reference : http://localhost:8000/scalar"
+	@echo "  Swagger UI           : http://localhost:8000/docs"
+	@echo "  Health               : http://localhost:8000/healthz"
+
+docker-test:
+	docker compose run --rm \
+	  -v "$(CURDIR)/tests:/app/tests:ro" \
+	  -v "$(CURDIR)/input:/app/input:ro" \
+	  -e API_BASE_URL=http://api:8000 \
+	  --no-deps \
+	  api pytest tests/ -v --tb=short
+
+docker-logs:
+	docker compose logs -f api worker
+
+docker-down:
+	docker compose down

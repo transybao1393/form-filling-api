@@ -18,64 +18,36 @@ client ──GET /jobs/{id}─────────► (reads state.json)
 client ──GET /jobs/{id}/data.json (reads result.json)
 ```
 
-## Prerequisites (host install)
+## Quickstart (Docker — the recommended path)
+
+Two `make` targets. Everything else (image build, model pull, tests) is
+inside Docker.
 
 ```bash
-# macOS
-brew install tesseract poppler redis
-brew services start redis
-
-# Debian / Ubuntu
-sudo apt-get install tesseract-ocr poppler-utils redis-server
-sudo systemctl enable --now redis
+make docker-setup       # one-time: verify Docker + Ollama, pull qwen3:8b, build image
+make docker-up          # start redis + api + worker, then run the test suite
 ```
 
-Python deps (from repo root):
-```bash
-make setup
-.venv/bin/pip install -r requirements.txt    # picks up arq
-```
+When `docker-up` finishes you'll see test output and links to:
 
-Ollama + model:
-```bash
-ollama pull qwen3:8b
-ollama serve   # in a separate terminal
-```
+- Scalar API reference: <http://localhost:8000/scalar>
+- Swagger UI: <http://localhost:8000/docs>
+- Health: <http://localhost:8000/healthz>
 
-## Run (host, two processes)
+Other helpers:
 
 ```bash
-# Terminal 1 — API
-.venv/bin/uvicorn api.main:app --reload --port 8000
-
-# Terminal 2 — worker
-.venv/bin/arq api.worker.WorkerSettings
+make docker-test        # re-run the test suite without restarting
+make docker-logs        # tail api + worker logs
+make docker-down        # stop the stack (preserves the jobs volume)
 ```
 
-Swagger UI: <http://localhost:8000/docs>
+### Why Ollama stays on the host
 
-## Run (Docker, recommended for the deployment)
-
-The repo ships a `Dockerfile` and `docker-compose.yml` that bring up Redis,
-the API, and the worker in a single command. Ollama stays on the host
-because Docker on macOS cannot use the Metal GPU; the containers reach it
-via `host.docker.internal:11434`.
-
-```bash
-# from repo root
-docker compose build
-docker compose up -d
-docker compose logs -f api worker
-```
-
-If `GET /healthz` returns `ollama=down`, your host Ollama is bound only to
-`127.0.0.1`. Make it listen on all interfaces:
-
-```bash
-# macOS — set the launchctl env var and restart Ollama
-launchctl setenv OLLAMA_HOST 0.0.0.0:11434
-killall Ollama && open -a Ollama
-```
+Docker on macOS cannot use the Apple-Metal GPU; running Qwen3:8b on CPU
+inside a container is roughly 10× slower. So the containers reach the host
+Ollama via `host.docker.internal:11434`. `make docker-setup` checks this
+for you and prints a fix-it message if Ollama is bound only to `127.0.0.1`.
 
 ## Endpoints
 
@@ -134,6 +106,58 @@ Stage progression:
 
 Returns 200 with `Content-Disposition: attachment; filename="data.json"`
 once `status="completed"`. Returns 409 + the current state body otherwise.
+
+### `POST /to-acroform` — convert a PDF to editable AcroForm (sync)
+
+Returns an AcroForm PDF where every detected field is a real, editable widget.
+Reviewers can fix wrong values inline in any PDF viewer instead of bouncing
+back through the API.
+
+| Field | Required | Notes |
+|---|---|---|
+| `form_file` | yes | **PDF only** (DOCX is rejected with 415) |
+| `data_file` | no | If supplied, widgets are pre-populated from this `data.json` |
+| `answers_file` | no | Optional flat `{question_id: answer}` for nested data |
+| `format` | no | `flat | flatlist | nested` override |
+
+Response headers tell you which path ran and how the values were sourced:
+
+| Header | Meaning |
+|---|---|
+| `X-Acroform-Source: existing` | Input already had AcroForm widgets — fast-path |
+| `X-Acroform-Source: injected` | Input was a non-AcroForm PDF — detection + injection ran |
+| `X-Fields-Total` | Total widgets in the resulting AcroForm |
+| `X-Fields-Filled` | Widgets pre-populated from `data_file` |
+| `X-Fields-Carried-Over` | Widgets pre-populated from text already drawn on the page (recovered from a previously overlay-filled PDF) |
+
+**Carry-over rule** — when the input is a non-AcroForm PDF that already has
+text drawn inside the detected field bboxes, that text is recovered into each
+widget's default value. Per-field precedence: `data_file` > carried-over text
+> empty.
+
+> **Recommended flow for editable output:** call `/to-acroform` with the same
+> `form_file + data_file` you'd pass to `/fill-form`. That produces an
+> editable AcroForm pre-populated with values in one step.
+>
+> **Carry-over is best-effort** — it works fully when the input PDF already
+> uses native AcroForm widgets (Acrobat-style round-trip) or when fields are
+> table cells. It is **partial for `/fill-form`-overlay output**: the
+> detector identifies fields by visual emptiness (underscore runs, "Label:"
+> blank space, bordered rectangles), and `/fill-form` overlays text onto
+> those gaps — once filled, those gaps no longer look empty, so the detector
+> rediscovers fewer fields. Avoid the round-trip when possible; pass data
+> directly to `/to-acroform`.
+
+```bash
+# 1. blank PDF + data → editable AcroForm with values
+curl -F "form_file=@input/test6/questionnaire_blank.pdf" \
+     -F "data_file=@input/test6/data.json" \
+     http://localhost:8000/to-acroform -o filled-acroform.pdf
+
+# 2. overlay-filled PDF (no data) → editable AcroForm with carry-over values
+curl -F "form_file=@some-overlay-filled.pdf" \
+     http://localhost:8000/to-acroform -o recovered-acroform.pdf
+```
 
 ### `GET /healthz`
 

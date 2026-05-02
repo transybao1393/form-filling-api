@@ -12,10 +12,10 @@ WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# `/fill-form` calls run_pipeline + its stage modules at the repo root.
+# `/fill-form` and `/to-acroform` call these repo-root modules at runtime.
 COPY run_pipeline.py field_detector.py field_normalizer.py \
      flatlist_adapter.py questionnaire_adapter.py form_filler.py \
-     form_utils.py docx_detector.py docx_filler.py \
+     form_utils.py docx_detector.py docx_filler.py acroform_writer.py \
      /app/
 
 COPY api/ /app/api/
