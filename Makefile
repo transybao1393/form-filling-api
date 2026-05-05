@@ -227,6 +227,34 @@ docker-test:
 	  --no-deps \
 	  api pytest tests/ -v --tb=short
 
+# Rate-limit tests need the api container to run with TIGHT per-IP limits
+# (otherwise a normal test pass would never trip the throttle). This target
+# recreates the api container with 3/minute on every limited endpoint, runs
+# only the rate-limit suite, and restores the defaults afterwards.
+docker-test-rate-limit:
+	RATE_LIMIT_GENERATE=3/minute \
+	RATE_LIMIT_FILL_FORM=3/minute \
+	RATE_LIMIT_TO_ACROFORM=3/minute \
+	  docker compose up -d --force-recreate api
+	@printf "Waiting for /healthz "
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  curl -sf http://localhost:8000/healthz >/dev/null 2>&1 && { echo " ok"; break; }; \
+	  printf "."; sleep 2; \
+	done
+	# Wipe slowapi's per-IP counters (DB 1) from any prior run so the test
+	# starts from a known-clean bucket. arq's queue lives on DB 0 — untouched.
+	docker compose exec -T redis redis-cli -n 1 FLUSHDB
+	-docker compose run --rm \
+	  -v "$(CURDIR)/tests:/app/tests:ro" \
+	  -v "$(CURDIR)/input:/app/input:ro" \
+	  -e API_BASE_URL=http://api:8000 \
+	  -e RATE_LIMIT_GENERATE=3/minute \
+	  -e RATE_LIMIT_FILL_FORM=3/minute \
+	  -e RATE_LIMIT_TO_ACROFORM=3/minute \
+	  --no-deps \
+	  api pytest tests/test_rate_limit.py -v --tb=short
+	docker compose up -d --force-recreate api
+
 docker-logs:
 	docker compose logs -f api worker
 

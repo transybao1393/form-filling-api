@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.12-slim
 
 # OCR + scanned-PDF support — pdfplumber doesn't pull these.
@@ -9,8 +10,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Install uv — 10× faster than pip on cold installs (parallel HTTP/2 fetches)
+# and reuses a BuildKit cache across rebuilds. The official wheel is small
+# and self-contained.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --root-user-action=ignore uv
+
 COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+# `--system` installs into the global site-packages (matches old pip layout).
+# `--mount=type=cache` lets uv reuse already-downloaded wheels across builds —
+# the next change to requirements.txt only re-fetches what actually changed.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system --no-progress -r requirements.txt
 
 # `/fill-form` and `/to-acroform` call these repo-root modules at runtime.
 COPY run_pipeline.py field_detector.py field_normalizer.py \

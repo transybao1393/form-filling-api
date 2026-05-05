@@ -20,6 +20,15 @@ services:
       OLLAMA_MODEL: qwen3:8b
       REDIS_HOST: redis
       JOBS_DIR: /var/lib/form-pipeline/jobs
+      # Honour host-shell overrides so tests can flip rate limits for one
+      # run via `RATE_LIMIT_FILL_FORM=3/minute docker compose up -d`.
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-1}
+      RATE_LIMIT_GENERATE: ${RATE_LIMIT_GENERATE:-30/minute}
+      RATE_LIMIT_FILL_FORM: ${RATE_LIMIT_FILL_FORM:-120/minute}
+      RATE_LIMIT_TO_ACROFORM: ${RATE_LIMIT_TO_ACROFORM:-120/minute}
+      # CORS_ALLOWED_ORIGINS — falls back to config.py's localhost set
+      # unless explicitly set in the host shell:
+      #   CORS_ALLOWED_ORIGINS=https://app.example.com docker compose up -d
     volumes:
       - jobs:/var/lib/form-pipeline/jobs
     depends_on:

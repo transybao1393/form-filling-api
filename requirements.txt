@@ -26,6 +26,15 @@ python-pptx>=0.6.23
 # async job queue (api/worker.py). Pulls redis-py transitively.
 arq>=0.26.0
 
+# per-IP rate limiting on the expensive endpoints (/generate-data-json,
+# /fill-form, /to-acroform). Backed by the same Redis we already run.
+slowapi>=0.1.9
+
+# pdfminer.six pulls in cryptography; the 47.0.0 wheel for manylinux aarch64
+# uses CPU features that SIGILL on Docker Desktop / Apple Silicon. Pin
+# below 47 until upstream ships a fixed wheel.
+cryptography<47
+
 # polished /scalar API reference page
 scalar-fastapi>=1.0.0
 

@@ -54,3 +54,43 @@ MAX_REQUEST_BYTES: int = int(os.getenv("MAX_REQUEST_BYTES", str(100 * 1024 * 102
 # Default per-file size cap (MB) when an endpoint doesn't override it.
 # Most endpoints take a few-MB form + smaller JSON, so 50 MB is generous.
 MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "50"))
+
+# --- CORS --------------------------------------------------------------------
+# Comma-separated list of origins permitted to call the API from a browser.
+# Empty / unset → safe localhost defaults (dev-friendly). In production, set
+# to the actual frontend origin(s), e.g.:
+#   CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
+# Use "*" only if the API is genuinely meant to be open to any origin.
+_DEFAULT_CORS_ORIGINS = ",".join([
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8000",
+])
+CORS_ALLOWED_ORIGINS: list[str] = [
+    o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", _DEFAULT_CORS_ORIGINS).split(",")
+    if o.strip()
+]
+
+# --- Rate limiting (per-IP, Redis-backed via slowapi) ------------------------
+# Format follows limits.parse() — "<count>/<period>" where period is
+# second|minute|hour|day. Multiple limits separated by ";" — e.g.
+# "10/minute;100/hour" applies BOTH (the stricter wins).
+#
+# Defaults sized for a Mac mini M4 with one Ollama worker, treating rate
+# limits as anti-DoS rather than strict shaping (real users won't hit them):
+#   /generate-data-json — each job pins Ollama for 30-90s, so 30/min/IP
+#                        already exceeds what the queue can chew through.
+#   /fill-form          — sync, ~1-3s per call. 120/min handles bulk fills.
+#   /to-acroform        — same.
+# Tighten in production via env if you have a stricter quota target.
+RATE_LIMIT_GENERATE: str = os.getenv("RATE_LIMIT_GENERATE", "30/minute")
+RATE_LIMIT_FILL_FORM: str = os.getenv("RATE_LIMIT_FILL_FORM", "120/minute")
+RATE_LIMIT_TO_ACROFORM: str = os.getenv("RATE_LIMIT_TO_ACROFORM", "120/minute")
+# "1" enables; anything else disables (useful when running tests that don't
+# want to share a Redis-backed counter, or for local CLI workflows).
+RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "1") == "1"

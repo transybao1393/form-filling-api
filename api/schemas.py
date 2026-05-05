@@ -25,7 +25,13 @@ class DataJson(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    """Top-level `status` is "ok" iff every dependency is reachable; otherwise
+    "degraded" — individual fields say which one is down. We return HTTP 200
+    in both cases so monitoring systems can read the body and decide what to
+    page on (vs. blocking the load balancer with a 503)."""
+    status: Literal["ok", "degraded"]
     ollama: Literal["ok", "down"]
+    redis: Literal["ok", "down"]
     model: str
 
 

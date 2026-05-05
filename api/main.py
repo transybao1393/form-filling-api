@@ -20,10 +20,13 @@ from uuid import uuid4
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from scalar_fastapi import get_scalar_api_reference
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from . import config, job_store, ollama_client
 from .file_validation import (
@@ -132,7 +135,7 @@ app.openapi = _patched_openapi
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.CORS_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -144,6 +147,38 @@ app.add_middleware(MaxBodySizeMiddleware, max_bytes=config.MAX_REQUEST_BYTES)
 
 
 # --------------------------------------------------------------------------- #
+# Rate limiting — per-IP, Redis-backed
+# --------------------------------------------------------------------------- #
+# `default_limits=[]` means only endpoints explicitly decorated with
+# @limiter.limit(...) are throttled; everything else (e.g. /healthz, /jobs
+# polling, /docs) is free. Storage is the same Redis the queue uses, so
+# multiple uvicorn workers (future) share a counter.
+
+if config.RATE_LIMIT_ENABLED:
+    # Use Redis DB N+1 so a `redis-cli flushdb` of slowapi counters never
+    # touches the arq job queue (which lives on REDIS_DATABASE).
+    _storage_uri = (
+        f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}"
+        f"/{config.REDIS_DATABASE + 1}"
+    )
+else:
+    # In-memory fallback. Resets on restart; counters not shared across workers.
+    _storage_uri = "memory://"
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=_storage_uri,
+    default_limits=[],
+    enabled=config.RATE_LIMIT_ENABLED,
+    # Attach X-RateLimit-* + Retry-After to every response so clients can
+    # adapt their pacing without trial-and-error.
+    headers_enabled=True,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
 
@@ -151,11 +186,29 @@ app.add_middleware(MaxBodySizeMiddleware, max_bytes=config.MAX_REQUEST_BYTES)
     "/healthz",
     response_model=HealthResponse,
     tags=["meta"],
-    summary="Health check (Ollama reachability)",
+    summary="Health check (per-component reachability)",
 )
 async def healthz() -> HealthResponse:
-    ok = await ollama_client.health()
-    return HealthResponse(ollama="ok" if ok else "down", model=config.OLLAMA_MODEL)
+    ollama_ok = await ollama_client.health()
+    redis_ok = await _redis_health()
+    overall = "ok" if (ollama_ok and redis_ok) else "degraded"
+    return HealthResponse(
+        status=overall,
+        ollama="ok" if ollama_ok else "down",
+        redis="ok" if redis_ok else "down",
+        model=config.OLLAMA_MODEL,
+    )
+
+
+async def _redis_health() -> bool:
+    """True iff a PING round-trip to the arq Redis pool succeeds."""
+    pool: ArqRedis | None = getattr(app.state, "arq", None)
+    if pool is None:
+        return False
+    try:
+        return bool(await asyncio.wait_for(pool.ping(), timeout=2.0))
+    except Exception:
+        return False
 
 
 @app.get("/scalar", include_in_schema=False)
@@ -188,7 +241,10 @@ async def scalar_reference():
         415: {"description": "Unsupported file type"},
     },
 )
+@limiter.limit(config.RATE_LIMIT_GENERATE)
 async def submit_job(
+    request: Request,
+    response: Response,
     questionnaire_file: UploadFile = File(
         ..., description="Blank questionnaire — PDF / scanned PDF / image / DOCX"
     ),
@@ -347,7 +403,9 @@ _FILL_FORMAT_OPTIONS = {"flat", "flatlist", "nested"}
         415: {"description": "Unsupported file type"},
     },
 )
+@limiter.limit(config.RATE_LIMIT_FILL_FORM)
 async def fill_form(
+    request: Request,
     form_file: UploadFile = File(
         ..., description="PDF or DOCX form to fill"
     ),
@@ -402,15 +460,25 @@ async def fill_form(
         # it off the event loop so the API process stays responsive.
         from run_pipeline import run as run_form_pipeline
 
-        report = await asyncio.to_thread(
-            run_form_pipeline,
-            str(form_path),
-            str(data_path),
-            output_pdf=str(out_path),
-            workdir=str(workdir),
-            format_override=format,
-            answers_json=str(answers_path) if answers_path else None,
-        )
+        try:
+            report = await asyncio.to_thread(
+                run_form_pipeline,
+                str(form_path),
+                str(data_path),
+                output_pdf=str(out_path),
+                workdir=str(workdir),
+                format_override=format,
+                answers_json=str(answers_path) if answers_path else None,
+            )
+        except Exception as e:
+            log.warning("fill_form: pipeline failed for %s: %s", form_name, e)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"pipeline failed: {type(e).__name__}: {str(e)[:200]}. "
+                    "Confirm the PDF has a text layer and the data.json is valid."
+                ),
+            ) from e
 
         if not out_path.exists() or report.get("num_filled", 0) == 0 and report.get("num_missing", 0) == 0:
             raise HTTPException(
@@ -489,7 +557,9 @@ async def fill_form(
         415: {"description": "Input is not a PDF"},
     },
 )
+@limiter.limit(config.RATE_LIMIT_TO_ACROFORM)
 async def to_acroform(
+    request: Request,
     form_file: UploadFile = File(
         ..., description="PDF to convert to AcroForm"
     ),
