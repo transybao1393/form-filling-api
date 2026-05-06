@@ -66,3 +66,6 @@ Thumbs.db
 # --- Docker -----------------------------------------------------------------
 # Compose may write logs / state here in some setups.
 docker-compose.override.yml
+
+# --- Tests ------------------------------------------------------------------
+tests/
