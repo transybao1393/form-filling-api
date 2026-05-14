@@ -9,6 +9,8 @@ via job_store.update_state().
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import re
@@ -16,9 +18,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import httpx
+from arq.worker import Retry
 from pydantic import ValidationError
 
-from . import job_store, ollama_client, prompts
+from . import config, job_store, ollama_client, prompts
 from .extractors import UnsupportedFileType, extract_text
 from .schemas import DataJson
 
@@ -113,6 +117,9 @@ async def run_generation(ctx: dict[str, Any], job_id: str) -> None:
 
     try:
         meta = job_store.get_meta(job_id)
+        if meta is None:
+            log.info("run_generation: job_id=%s deleted before start, skipping", job_id)
+            return
         uploads = job_store.uploads_dir(job_id)
 
         update(
@@ -186,8 +193,114 @@ async def run_generation(ctx: dict[str, Any], job_id: str) -> None:
             completed_at=_now_iso(),
         )
         log.info("run_generation: completed job_id=%s items=%d", job_id, len(data.items))
+        await _maybe_enqueue_webhook(ctx, job_id)
 
     except Exception as e:
         log.exception("run_generation: job_id=%s failed", job_id)
         job_store.mark_failed(job_id, e)
+        await _maybe_enqueue_webhook(ctx, job_id)
         raise
+
+
+# --------------------------------------------------------------------------- #
+# Webhook delivery — opt-in callback when a job reaches a terminal state
+# --------------------------------------------------------------------------- #
+
+async def _maybe_enqueue_webhook(ctx: dict[str, Any], job_id: str) -> None:
+    """Queue a webhook delivery job if the caller registered one. Runs as a
+    separate arq job so retries/backoff are isolated from the main worker
+    and a slow receiver can't pin a generation slot."""
+    meta = job_store.get_meta(job_id)
+    if meta is None or not meta.get("webhook_url"):
+        return
+    pool = ctx.get("redis")
+    if pool is None:
+        log.warning("_maybe_enqueue_webhook: no arq pool in ctx, skipping")
+        return
+    # max_tries=4 (set on the worker registration) → arq attempts at ~0s,
+    # 2s, 4s, 8s before giving up.
+    await pool.enqueue_job("deliver_webhook", job_id)
+    log.info("_maybe_enqueue_webhook: queued for job_id=%s", job_id)
+
+
+async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
+    """POST the terminal-state payload to the caller's webhook_url. Raises on
+    network errors / 5xx so arq retries with exponential backoff; 4xx is
+    swallowed (caller misconfigured — no point retrying)."""
+    meta = job_store.get_meta(job_id)
+    state = job_store.get_state(job_id)
+    if meta is None or state is None:
+        log.info("deliver_webhook: job_id=%s no longer exists, dropping", job_id)
+        return
+    webhook_url = meta.get("webhook_url")
+    if not webhook_url:
+        return
+
+    status = state.get("status")
+    download_url = f"/jobs/{job_id}/data.json" if status == "completed" else None
+    result_data: dict[str, Any] | None = None
+    if status == "completed":
+        rp = job_store.result_path(job_id)
+        if rp.exists():
+            result_data = json.loads(rp.read_text())
+
+    payload: dict[str, Any] = {
+        "job_id": job_id,
+        "status": status,
+        "stage": state.get("stage"),
+        "submitted_at": state.get("submitted_at"),
+        "completed_at": state.get("completed_at"),
+        "error": state.get("error"),
+        "status_url": f"/jobs/{job_id}",
+        "download_url": download_url,
+        "result": result_data,
+    }
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "form-pipeline-webhook/1",
+        "X-Form-Pipeline-Job-Id": job_id,
+        "X-Form-Pipeline-Event": f"job.{status}",
+    }
+    if config.WEBHOOK_SECRET:
+        sig = hmac.new(
+            config.WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256,
+        ).hexdigest()
+        headers["X-Form-Pipeline-Signature"] = f"sha256={sig}"
+
+    # Compute the next-attempt backoff up front: 2s, 4s, 8s after tries
+    # 1, 2, 3 (arq gives up on try == max_tries=4 anyway, so the 4th defer
+    # is never observed).
+    job_try = int(ctx.get("job_try", 1) or 1)
+    backoff_s = float(2 ** job_try)
+
+    try:
+        async with httpx.AsyncClient(timeout=config.WEBHOOK_TIMEOUT) as client:
+            resp = await client.post(webhook_url, content=body, headers=headers)
+    except httpx.HTTPError as e:
+        log.warning(
+            "deliver_webhook: job_id=%s url=%s try=%d network error %s — retry in %.0fs",
+            job_id, webhook_url, job_try, e, backoff_s,
+        )
+        # arq retries only on Retry / CancelledError / RetryJob — a plain
+        # exception is treated as a permanent failure.
+        raise Retry(defer=backoff_s) from e
+
+    if 200 <= resp.status_code < 300:
+        log.info(
+            "deliver_webhook: job_id=%s url=%s try=%d → %d OK",
+            job_id, webhook_url, job_try, resp.status_code,
+        )
+        return
+    if 400 <= resp.status_code < 500:
+        log.warning(
+            "deliver_webhook: job_id=%s url=%s try=%d → %d, dropping (no retry)",
+            job_id, webhook_url, job_try, resp.status_code,
+        )
+        return
+    log.warning(
+        "deliver_webhook: job_id=%s url=%s try=%d → %d, retry in %.0fs",
+        job_id, webhook_url, job_try, resp.status_code, backoff_s,
+    )
+    raise Retry(defer=backoff_s)

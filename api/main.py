@@ -11,18 +11,23 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import shutil
 import tempfile
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
 from uuid import uuid4
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
-from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import ValidationError
 from scalar_fastapi import get_scalar_api_reference
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -39,9 +44,15 @@ from .file_validation import (
     validate_upload,
 )
 from .schemas import (
+    DataJson,
     HealthResponse,
+    JobListItem,
+    JobListResponse,
+    JobStatus,
     JobStatusResponse,
     JobSubmitResponse,
+    ValidateDataJsonResponse,
+    ValidationIssue,
 )
 
 
@@ -237,6 +248,7 @@ async def scalar_reference():
     ),
     responses={
         202: {"description": "Job accepted and queued"},
+        400: {"description": "Invalid webhook_url"},
         413: {"description": "Upload exceeds size limit"},
         415: {"description": "Unsupported file type"},
     },
@@ -255,6 +267,16 @@ async def submit_job(
     questionnaire_title: str | None = Form(
         default=None, description="Optional title override"
     ),
+    webhook_url: str | None = Form(
+        default=None,
+        description=(
+            "Optional callback URL (http:// or https://). When set, the API "
+            "POSTs the terminal-state payload to this URL on both completion "
+            "and failure — replacing forced polling. Body is JSON; if "
+            "WEBHOOK_SECRET is configured the request includes "
+            "X-Form-Pipeline-Signature: sha256=<hmac> for verification."
+        ),
+    ),
 ) -> JobSubmitResponse:
     validate_upload(
         questionnaire_file,
@@ -272,6 +294,9 @@ async def submit_job(
             label=f"reference_files[{i}]",
         )
         validated_refs.append(ref)
+
+    if webhook_url is not None:
+        webhook_url = _validate_webhook_url(webhook_url)
 
     job_id = uuid4().hex
     q_name = Path(questionnaire_file.filename or "questionnaire.bin").name
@@ -295,6 +320,7 @@ async def submit_job(
         questionnaire_filename=q_name,
         reference_filenames=ref_names,
         questionnaire_title=questionnaire_title,
+        webhook_url=webhook_url,
     )
 
     pool: ArqRedis = app.state.arq
@@ -310,6 +336,73 @@ async def submit_job(
         status_url=f"/jobs/{job_id}",
         download_url=f"/jobs/{job_id}/data.json",
     )
+
+
+@app.get(
+    "/jobs",
+    response_model=JobListResponse,
+    tags=["jobs"],
+    summary="List jobs (paginated, filterable)",
+    description=(
+        "Returns recent jobs for client recovery and dashboards. Sorted "
+        "newest-first by `submitted_at`.\n\n"
+        "Filters (all optional):\n"
+        "- `status` — repeat for OR semantics, e.g. `?status=completed&status=failed`.\n"
+        "- `since` / `until` — ISO 8601 datetimes; `submitted_at >= since` "
+        "and `submitted_at < until`.\n"
+        "- `limit` — page size (default 50, range 1–200).\n"
+        "- `offset` — page start (default 0).\n\n"
+        "`total` is the count after filtering, before pagination — paginate "
+        "by stepping `offset` until `offset + items.length >= total`."
+    ),
+    responses={
+        200: {"description": "Page of matching jobs"},
+        400: {"description": "Malformed since / until datetime"},
+        422: {"description": "Bad status value"},
+    },
+)
+async def list_jobs_endpoint(
+    status: list[JobStatus] | None = Query(
+        default=None,
+        description="Filter by one or more statuses (OR'd).",
+    ),
+    since: str | None = Query(
+        default=None,
+        description="ISO 8601 datetime; submitted_at >= since.",
+    ),
+    until: str | None = Query(
+        default=None,
+        description="ISO 8601 datetime; submitted_at < until.",
+    ),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> JobListResponse:
+    since_dt = _parse_iso_datetime(since, "since") if since else None
+    until_dt = _parse_iso_datetime(until, "until") if until else None
+    statuses = set(status) if status else None
+
+    rows = job_store.list_jobs(
+        statuses=statuses, since=since_dt, until=until_dt,
+    )
+    total = len(rows)
+    page = rows[offset : offset + limit]
+    items = [
+        JobListItem(
+            **{k: row.get(k) for k in (
+                "job_id", "status", "stage", "percent", "submitted_at",
+                "started_at", "completed_at", "error",
+                "questionnaire_filename", "questionnaire_title", "has_webhook",
+            )},
+            reference_filenames=row.get("reference_filenames") or [],
+            status_url=f"/jobs/{row['job_id']}",
+            download_url=(
+                f"/jobs/{row['job_id']}/data.json"
+                if row.get("status") == "completed" else None
+            ),
+        )
+        for row in page
+    ]
+    return JobListResponse(total=total, limit=limit, offset=offset, items=items)
 
 
 @app.get(
@@ -335,6 +428,30 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
         f"/jobs/{job_id}/data.json" if state.get("status") == "completed" else None
     )
     return JobStatusResponse(download_url=download_url, **state)
+
+
+@app.delete(
+    "/jobs/{job_id}",
+    status_code=204,
+    tags=["jobs"],
+    summary="Delete a job and all its uploaded files",
+    description=(
+        "Removes `JOBS_DIR/<job_id>/` recursively, including the original "
+        "uploads, the produced `data.json`, and the state file. Works in "
+        "any state (queued / running / completed / failed) — useful for "
+        "compliance-driven deletion or cancelling a stuck job. If a worker "
+        "is mid-run, its pending state writes become no-ops once the dir "
+        "is gone (no orphan state.json is recreated)."
+    ),
+    responses={
+        204: {"description": "Deleted"},
+        404: {"description": "Unknown job_id"},
+    },
+)
+async def delete_job(job_id: str) -> Response:
+    if not job_store.delete(job_id):
+        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+    return Response(status_code=204)
 
 
 @app.get(
@@ -371,11 +488,252 @@ async def download_result(job_id: str):
     )
 
 
+@app.get(
+    "/jobs/{job_id}/preview",
+    tags=["jobs"],
+    summary="First-page PNG of the filled output (lazy-cached)",
+    description=(
+        "Returns a PNG of page 1 of the filled questionnaire so dashboards "
+        "and list views can show thumbnails without downloading the whole "
+        "PDF.\n\n"
+        "On the first call the API runs the fill pipeline (1–6s for typical "
+        "PDFs) and caches both `filled.pdf` and `preview-{dpi}.png` in the "
+        "job directory; subsequent calls serve the PNG straight from disk "
+        "(<50ms). The `X-Preview-Source` response header reports which path "
+        "ran (`fresh` | `cache`). DELETE on the job removes the cache too.\n\n"
+        "Only PDF questionnaires are supported (DOCX → 415; rendering DOCX "
+        "would require a LibreOffice/Word converter we don't ship)."
+    ),
+    responses={
+        200: {
+            "description": "Page-1 PNG",
+            "content": {"image/png": {}},
+        },
+        400: {"description": "Fill pipeline failed"},
+        404: {"description": "Unknown job_id"},
+        409: {"description": "Job not completed yet (or it failed)"},
+        415: {"description": "Original questionnaire is DOCX/image, not PDF"},
+    },
+)
+@limiter.limit(config.RATE_LIMIT_FILL_FORM)
+async def preview(
+    request: Request,
+    job_id: str,
+    dpi: int = Query(
+        default=100, ge=50, le=200,
+        description="Render DPI (50–200). Cached PNGs are keyed by this value.",
+    ),
+) -> FileResponse:
+    state = job_store.get_state(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+    if state.get("status") != "completed":
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=409,
+            content={"detail": "job not completed", "current": state},
+        )
+
+    preview_png = job_store.job_dir(job_id) / f"preview-{dpi}.png"
+
+    # Fast path: serve the cached PNG.
+    if preview_png.exists():
+        return FileResponse(
+            path=str(preview_png),
+            media_type="image/png",
+            filename=f"preview-{dpi}.png",
+            headers={
+                "X-Preview-Source": "cache",
+                "Cache-Control": "private, max-age=86400",
+            },
+        )
+
+    # Slow path: ensure filled.pdf exists, then render page 1.
+    filled_pdf = await _ensure_filled_pdf(job_id)
+
+    from pdf2image import convert_from_path
+
+    def _render() -> None:
+        images = convert_from_path(
+            str(filled_pdf), dpi=dpi, first_page=1, last_page=1,
+        )
+        if not images:
+            raise RuntimeError("pdf2image returned 0 pages")
+        # Atomic-ish write so a parallel reader can never see a half-PNG.
+        tmp_png = preview_png.with_suffix(preview_png.suffix + ".tmp")
+        images[0].save(tmp_png, "PNG", optimize=True)
+        tmp_png.replace(preview_png)
+
+    try:
+        await asyncio.to_thread(_render)
+    except Exception as e:
+        log.warning("preview: render failed for job_id=%s: %s", job_id, e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"failed to render preview: {type(e).__name__}: {str(e)[:200]}",
+        ) from e
+
+    return FileResponse(
+        path=str(preview_png),
+        media_type="image/png",
+        filename=f"preview-{dpi}.png",
+        headers={
+            "X-Preview-Source": "fresh",
+            "Cache-Control": "private, max-age=86400",
+        },
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Sync /fill-form — same flow as `make run NAME=<n>`
 # --------------------------------------------------------------------------- #
 
 _FILL_FORMAT_OPTIONS = {"flat", "flatlist", "nested"}
+
+
+@app.post(
+    "/jobs/{job_id}/fill",
+    tags=["jobs"],
+    summary="Fill the original questionnaire with this job's data.json",
+    description=(
+        "Chained extract+fill in one call: reuses the questionnaire that was "
+        "uploaded to `/generate-data-json` and the `data.json` this job "
+        "produced, and streams the filled artifact back. Eliminates the "
+        "download-data + re-upload-PDF round-trip — the common path becomes "
+        "submit → poll → fill.\n\n"
+        "All form fields are optional:\n"
+        "- `form_file` — PDF or DOCX override (rare; lets you fill a "
+        "different template with the extracted data).\n"
+        "- `format` — `flat | flatlist | nested` override (default: auto-"
+        "detect; the produced data.json is always nested).\n"
+        "- `answers_file` — flat `{question_id: answer}` JSON for nested.\n\n"
+        "Response headers `X-Fields-Filled`, `X-Fields-Missing`, plus "
+        "`X-Form-Source: original | uploaded` so the caller can tell which "
+        "form was filled."
+    ),
+    responses={
+        200: {
+            "description": "Filled form returned as PDF or DOCX",
+            "content": {"application/pdf": {}, "application/octet-stream": {}},
+        },
+        400: {"description": "Invalid format or pipeline failure"},
+        404: {"description": "Unknown job_id"},
+        409: {"description": "Job not completed yet (or it failed)"},
+        415: {
+            "description": (
+                "Original questionnaire is not fillable (e.g. image scan) "
+                "and no form_file was supplied"
+            )
+        },
+    },
+)
+@limiter.limit(config.RATE_LIMIT_FILL_FORM)
+async def fill_job(
+    request: Request,
+    job_id: str,
+    form_file: UploadFile | None = File(
+        default=None,
+        description="Optional PDF/DOCX override; defaults to reusing the original questionnaire",
+    ),
+    answers_file: UploadFile | None = File(
+        default=None,
+        description="Optional flat {question_id: answer} for nested data",
+    ),
+    format: str | None = Form(
+        default=None,
+        description="Optional format override: flat | flatlist | nested",
+    ),
+) -> FileResponse:
+    if format is not None and format not in _FILL_FORMAT_OPTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"format must be one of {sorted(_FILL_FORMAT_OPTIONS)}, got {format!r}",
+        )
+
+    state = job_store.get_state(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+    if state.get("status") != "completed":
+        return JSONResponse(  # type: ignore[return-value]
+            status_code=409,
+            content={"detail": "job not completed", "current": state},
+        )
+
+    if form_file and form_file.filename:
+        validate_upload(form_file, allowed_suffixes=PDF_OR_DOCX, label="form_file")
+    if answers_file and answers_file.filename:
+        validate_upload(
+            answers_file, allowed_suffixes=JSON_ONLY, label="answers_file",
+        )
+
+    tmp = tempfile.mkdtemp(prefix="job-fill-")
+    tmp_path = Path(tmp)
+    try:
+        if form_file and form_file.filename:
+            form_name = Path(form_file.filename).name
+            form_path = tmp_path / form_name
+            _save_upload(form_file, form_path)
+            form_source = "uploaded"
+        else:
+            meta = job_store.get_meta(job_id)
+            if meta is None:
+                raise HTTPException(
+                    status_code=404, detail=f"unknown job_id={job_id!r}",
+                )
+            q_name = meta.get("questionnaire_filename")
+            if not q_name:
+                raise HTTPException(
+                    status_code=415,
+                    detail="job has no questionnaire on file; supply form_file",
+                )
+            if Path(q_name).suffix.lower() not in PDF_OR_DOCX:
+                raise HTTPException(
+                    status_code=415,
+                    detail=(
+                        f"original questionnaire {q_name!r} is not fillable "
+                        "(only PDF/DOCX can be filled). Upload a form_file "
+                        "to fill a different template with this job's data."
+                    ),
+                )
+            src = job_store.uploads_dir(job_id) / q_name
+            if not src.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"questionnaire file missing on disk for job_id={job_id!r}",
+                )
+            form_path = tmp_path / Path(q_name).name
+            shutil.copyfile(src, form_path)
+            form_source = "original"
+
+        # Copy this job's result.json into the tmp dir as data.json — the
+        # pipeline reads it from a path.
+        data_path = tmp_path / "data.json"
+        result_src = job_store.result_path(job_id)
+        if not result_src.exists():
+            raise HTTPException(
+                status_code=409,
+                detail="job marked completed but result.json is missing",
+            )
+        shutil.copyfile(result_src, data_path)
+
+        answers_path: Path | None = None
+        if answers_file and answers_file.filename:
+            answers_path = tmp_path / Path(answers_file.filename).name
+            _save_upload(answers_file, answers_path)
+
+        return await _run_fill_and_respond(
+            form_path=form_path,
+            data_path=data_path,
+            answers_path=answers_path,
+            format_override=format,
+            tmp_dir=tmp,
+            extra_headers={"X-Form-Source": form_source},
+        )
+    except HTTPException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
 
 
 @app.post(
@@ -434,7 +792,6 @@ async def fill_form(
         )
 
     form_name = Path(form_file.filename or "form.pdf").name
-    suffix = Path(form_name).suffix.lower()
 
     # The pipeline writes intermediate files (fields.json, etc.) into a workdir
     # and the final filled artifact alongside. We use a TemporaryDirectory so
@@ -452,68 +809,12 @@ async def fill_form(
             answers_path = tmp_path / Path(answers_file.filename).name
             _save_upload(answers_file, answers_path)
 
-        out_ext = ".docx" if suffix == ".docx" else ".pdf"
-        out_path = tmp_path / f"filled{out_ext}"
-        workdir = tmp_path / "work"
-
-        # run_pipeline.run() is sync + IO-bound (PDF parsing + Pillow). Push
-        # it off the event loop so the API process stays responsive.
-        from run_pipeline import run as run_form_pipeline
-
-        try:
-            report = await asyncio.to_thread(
-                run_form_pipeline,
-                str(form_path),
-                str(data_path),
-                output_pdf=str(out_path),
-                workdir=str(workdir),
-                format_override=format,
-                answers_json=str(answers_path) if answers_path else None,
-            )
-        except Exception as e:
-            log.warning("fill_form: pipeline failed for %s: %s", form_name, e)
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"pipeline failed: {type(e).__name__}: {str(e)[:200]}. "
-                    "Confirm the PDF has a text layer and the data.json is valid."
-                ),
-            ) from e
-
-        if not out_path.exists() or report.get("num_filled", 0) == 0 and report.get("num_missing", 0) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "pipeline produced no output — likely no fields detected. "
-                    "Confirm the PDF has a text layer (not a scan)."
-                ),
-            )
-
-        log.info(
-            "fill_form: form=%r data=%r filled=%d missing=%d",
-            form_name, data_file.filename,
-            report.get("num_filled", 0), report.get("num_missing", 0),
-        )
-
-        # FileResponse will read the file as it's streamed, then BackgroundTask
-        # cleans up the tempdir.
-        from starlette.background import BackgroundTask
-
-        cleanup = BackgroundTask(shutil.rmtree, tmp, ignore_errors=True)
-        media_type = (
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            if out_ext == ".docx" else "application/pdf"
-        )
-        download_name = f"filled{out_ext}"
-        return FileResponse(
-            path=str(out_path),
-            media_type=media_type,
-            filename=download_name,
-            headers={
-                "X-Fields-Filled": str(report.get("num_filled", 0)),
-                "X-Fields-Missing": str(report.get("num_missing", 0)),
-            },
-            background=cleanup,
+        return await _run_fill_and_respond(
+            form_path=form_path,
+            data_path=data_path,
+            answers_path=answers_path,
+            format_override=format,
+            tmp_dir=tmp,
         )
     except HTTPException:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -521,6 +822,86 @@ async def fill_form(
     except Exception:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
+
+
+# --------------------------------------------------------------------------- #
+# Sync /validate-data-json — schema check for flat / flatlist / nested
+# --------------------------------------------------------------------------- #
+
+@app.post(
+    "/validate-data-json",
+    response_model=ValidateDataJsonResponse,
+    tags=["validation"],
+    summary="Validate a data.json payload before posting it to /fill-form",
+    description=(
+        "Stateless schema check. Auto-detects whether the upload is in "
+        "**flat**, **flat-list**, or **nested** form, then validates against "
+        "the corresponding shape. Returns 200 with `{valid, format, errors}` "
+        "regardless — invalid is a normal answer to a validation question, "
+        "not an HTTP error.\n\n"
+        "Use this in CI to catch malformed `data.json` files before paying "
+        "for a fill, or after hand-editing an LLM-generated payload."
+    ),
+    responses={
+        200: {"description": "Verdict (valid or invalid; see errors[])"},
+        400: {"description": "data_file is not valid JSON"},
+        415: {"description": "data_file is not a .json upload"},
+    },
+)
+@limiter.limit(config.RATE_LIMIT_FILL_FORM)
+async def validate_data_json(
+    request: Request,
+    response: Response,
+    data_file: UploadFile = File(
+        ..., description="data.json — flat, flat-list, or nested",
+    ),
+) -> ValidateDataJsonResponse:
+    validate_upload(data_file, allowed_suffixes=JSON_ONLY, label="data_file")
+    raw = await data_file.read()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"data_file is not valid JSON: {e}",
+        )
+
+    from run_pipeline import detect_format
+    fmt = detect_format(parsed)
+
+    # Strict path: any dict that carries an `items` key whose entries look
+    # like Item objects (carry `question`) is treated as canonical DataJson
+    # — we run it through the Pydantic model so missing fields like
+    # `questionnaire_title` surface as crisp errors. A bare flatlist
+    # (top-level list) skips this path and gets loose validation below.
+    if (
+        isinstance(parsed, dict)
+        and isinstance(parsed.get("items"), list)
+        and parsed["items"]
+        and isinstance(parsed["items"][0], dict)
+        and "question" in parsed["items"][0]
+    ):
+        try:
+            DataJson.model_validate(parsed)
+            return ValidateDataJsonResponse(valid=True, format="nested", errors=[])
+        except ValidationError as e:
+            return ValidateDataJsonResponse(
+                valid=False, format="nested",
+                errors=_pydantic_errors_to_issues(e),
+            )
+
+    if fmt == "flat":
+        errors = _validate_flat(parsed)
+    elif fmt == "flatlist":
+        errors = _validate_flatlist(parsed)
+    else:
+        # detect_format's "nested" path: deep tree with {id|qid, question}
+        # leaves. No Pydantic schema for this rare format — if detect_format
+        # accepted it the pipeline will too.
+        errors = []
+    return ValidateDataJsonResponse(
+        valid=not errors, format=fmt, errors=errors,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -747,6 +1128,307 @@ def _save_upload(upload: UploadFile, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     with dest.open("wb") as f:
         shutil.copyfileobj(upload.file, f)
+
+
+async def _ensure_filled_pdf(job_id: str) -> Path:
+    """Make sure `JOBS_DIR/<job_id>/filled.pdf` exists; create it on demand
+    by running the fill pipeline against the original questionnaire and the
+    job's `result.json`. Idempotent.
+
+    Concurrency: two callers racing for the same job both run the pipeline
+    and one wins the final `replace`. Wasted CPU but correct outcome.
+    """
+    state = job_store.get_state(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+    if state.get("status") != "completed":
+        raise HTTPException(status_code=409, detail="job not completed")
+
+    cached = job_store.job_dir(job_id) / "filled.pdf"
+    if cached.exists():
+        return cached
+
+    meta = job_store.get_meta(job_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+    q_name = meta.get("questionnaire_filename")
+    if not q_name or Path(q_name).suffix.lower() != ".pdf":
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                f"original questionnaire {q_name!r} is not a PDF — "
+                "preview/fill caching is only supported for PDF inputs."
+            ),
+        )
+    src = job_store.uploads_dir(job_id) / q_name
+    if not src.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"questionnaire missing on disk for job_id={job_id!r}",
+        )
+    result_src = job_store.result_path(job_id)
+    if not result_src.exists():
+        raise HTTPException(
+            status_code=409,
+            detail="job marked completed but result.json is missing",
+        )
+
+    tmp = tempfile.mkdtemp(prefix="job-prefill-")
+    tmp_path = Path(tmp)
+    try:
+        form_path = tmp_path / Path(q_name).name
+        shutil.copyfile(src, form_path)
+        data_path = tmp_path / "data.json"
+        shutil.copyfile(result_src, data_path)
+        out_path = tmp_path / "filled.pdf"
+        workdir = tmp_path / "work"
+
+        from run_pipeline import run as run_form_pipeline
+        try:
+            await asyncio.to_thread(
+                run_form_pipeline,
+                str(form_path),
+                str(data_path),
+                output_pdf=str(out_path),
+                workdir=str(workdir),
+                format_override=None,
+                answers_json=None,
+            )
+        except Exception as e:
+            log.warning(
+                "_ensure_filled_pdf: pipeline failed for job_id=%s: %s", job_id, e,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"fill pipeline failed: {type(e).__name__}: {str(e)[:200]}"
+                ),
+            ) from e
+        if not out_path.exists():
+            raise HTTPException(
+                status_code=400,
+                detail="fill pipeline produced no output",
+            )
+        # `replace` is atomic on POSIX; ensures parallel readers never see a
+        # truncated PDF.
+        shutil.move(str(out_path), str(cached))
+        return cached
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+async def _run_fill_and_respond(
+    *,
+    form_path: Path,
+    data_path: Path,
+    answers_path: Path | None,
+    format_override: str | None,
+    tmp_dir: str,
+    extra_headers: dict[str, str] | None = None,
+) -> FileResponse:
+    """Run run_pipeline.run() in a thread on already-saved paths, validate
+    the output, and stream it back as a FileResponse. Cleans up `tmp_dir`
+    after the response body is read. Used by both /fill-form and
+    /jobs/{job_id}/fill so they stay in lockstep on error handling and
+    headers.
+    """
+    from starlette.background import BackgroundTask
+
+    suffix = form_path.suffix.lower()
+    out_ext = ".docx" if suffix == ".docx" else ".pdf"
+    tmp_path = Path(tmp_dir)
+    out_path = tmp_path / f"filled{out_ext}"
+    workdir = tmp_path / "work"
+
+    # run_pipeline.run() is sync + IO-bound (PDF parsing + Pillow). Push it
+    # off the event loop so the API process stays responsive.
+    from run_pipeline import run as run_form_pipeline
+
+    try:
+        report = await asyncio.to_thread(
+            run_form_pipeline,
+            str(form_path),
+            str(data_path),
+            output_pdf=str(out_path),
+            workdir=str(workdir),
+            format_override=format_override,
+            answers_json=str(answers_path) if answers_path else None,
+        )
+    except Exception as e:
+        log.warning("fill pipeline failed for %s: %s", form_path.name, e)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"pipeline failed: {type(e).__name__}: {str(e)[:200]}. "
+                "Confirm the PDF has a text layer and the data.json is valid."
+            ),
+        ) from e
+
+    if not out_path.exists() or (
+        report.get("num_filled", 0) == 0 and report.get("num_missing", 0) == 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "pipeline produced no output — likely no fields detected. "
+                "Confirm the PDF has a text layer (not a scan)."
+            ),
+        )
+
+    log.info(
+        "fill pipeline: form=%r filled=%d missing=%d",
+        form_path.name,
+        report.get("num_filled", 0), report.get("num_missing", 0),
+    )
+
+    cleanup = BackgroundTask(shutil.rmtree, tmp_dir, ignore_errors=True)
+    media_type = (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        if out_ext == ".docx" else "application/pdf"
+    )
+    headers = {
+        "X-Fields-Filled": str(report.get("num_filled", 0)),
+        "X-Fields-Missing": str(report.get("num_missing", 0)),
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+    return FileResponse(
+        path=str(out_path),
+        media_type=media_type,
+        filename=f"filled{out_ext}",
+        headers=headers,
+        background=cleanup,
+    )
+
+
+def _pydantic_errors_to_issues(e: ValidationError) -> list[ValidationIssue]:
+    """Translate Pydantic's structured errors into our ValidationIssue shape.
+    Drops the `input` field that Pydantic includes — too noisy and can leak
+    user data into responses."""
+    out: list[ValidationIssue] = []
+    for err in e.errors():
+        out.append(ValidationIssue(
+            loc=[str(x) if not isinstance(x, int) else x for x in err.get("loc", ())],
+            msg=err.get("msg", ""),
+            type=err.get("type", ""),
+        ))
+    return out
+
+
+def _validate_flat(parsed: Any) -> list[ValidationIssue]:
+    """Flat = dict[str, scalar]. Reject lists, dicts, and other nested
+    values. Mirrors the assumption baked into run_pipeline.run() at line ~280
+    (the flat branch passes user_data straight through to the filler).
+    """
+    if not isinstance(parsed, dict):
+        return [ValidationIssue(
+            loc=[], msg="flat format must be a JSON object", type="type_error",
+        )]
+    issues: list[ValidationIssue] = []
+    for k, v in parsed.items():
+        if not isinstance(k, str):
+            issues.append(ValidationIssue(
+                loc=[k], msg="key must be a string", type="type_error",
+            ))
+            continue
+        if k.startswith("_"):
+            # Underscore-prefixed keys are stripped by run_pipeline; allow.
+            continue
+        if not isinstance(v, (str, int, float, bool)) and v is not None:
+            issues.append(ValidationIssue(
+                loc=[k],
+                msg=f"value must be a scalar (str/int/float/bool/null), got {type(v).__name__}",
+                type="type_error",
+            ))
+    return issues
+
+
+def _validate_flatlist(parsed: Any) -> list[ValidationIssue]:
+    """Flat-list = a list of question/answer dicts. The pipeline accepts
+    both the bare top-level list and a dict that wraps it under one of the
+    FLATLIST_ITEM_KEYS (e.g. `{"items": [...]}`). Use the same
+    `_looks_like_flatlist` probe the pipeline uses so we accept whatever
+    the pipeline accepts.
+    """
+    from run_pipeline import _looks_like_flatlist
+    is_fl, items_key, items = _looks_like_flatlist(parsed)
+    if not is_fl or items is None:
+        return [ValidationIssue(
+            loc=[],
+            msg=(
+                "flatlist format must be a JSON array of question/answer "
+                "objects, or a dict whose value at one of "
+                "(items, questions, results, data, answers) is such an array"
+            ),
+            type="type_error",
+        )]
+    if not items:
+        return [ValidationIssue(
+            loc=[items_key] if items_key else [],
+            msg="flatlist must contain at least one item",
+            type="value_error",
+        )]
+    base_loc: list[str | int] = [items_key] if items_key else []
+    q_keys = {"question", "label", "prompt", "title", "text"}
+    a_keys = {"extracted_answer", "answer", "value", "response"}
+    issues: list[ValidationIssue] = []
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            issues.append(ValidationIssue(
+                loc=base_loc + [i],
+                msg="item must be a JSON object",
+                type="type_error",
+            ))
+            continue
+        if not (set(item.keys()) & q_keys):
+            issues.append(ValidationIssue(
+                loc=base_loc + [i],
+                msg=f"item is missing a question key (one of {sorted(q_keys)})",
+                type="missing",
+            ))
+        if not (set(item.keys()) & a_keys):
+            issues.append(ValidationIssue(
+                loc=base_loc + [i],
+                msg=f"item is missing an answer key (one of {sorted(a_keys)})",
+                type="missing",
+            ))
+    return issues
+
+
+def _parse_iso_datetime(s: str, field: str) -> datetime:
+    """Parse an ISO 8601 datetime; reject anything malformed with HTTP 400.
+    Accepts both 'Z' suffix (UTC) and explicit offsets — fromisoformat()
+    handles 'Z' from Python 3.11+, which we require."""
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field} is not a valid ISO 8601 datetime: {s!r} ({e})",
+        )
+
+
+def _validate_webhook_url(url: str) -> str:
+    """Reject anything that isn't a syntactically valid http(s) URL. Returns
+    the trimmed URL on success; raises HTTPException(400) otherwise. Network
+    reachability is NOT checked here — that's what the retrying delivery is
+    for."""
+    cleaned = url.strip()
+    if not cleaned:
+        raise HTTPException(
+            status_code=400,
+            detail="webhook_url must be a non-empty http(s) URL",
+        )
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "webhook_url must use scheme http or https and include a host "
+                f"(got {url!r})"
+            ),
+        )
+    return cleaned
 
 
 def _dedup_name(name: str, taken: set[str]) -> str:

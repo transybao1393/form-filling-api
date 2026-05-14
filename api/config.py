@@ -94,3 +94,13 @@ RATE_LIMIT_TO_ACROFORM: str = os.getenv("RATE_LIMIT_TO_ACROFORM", "120/minute")
 # "1" enables; anything else disables (useful when running tests that don't
 # want to share a Redis-backed counter, or for local CLI workflows).
 RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "1") == "1"
+
+# --- Webhook delivery -------------------------------------------------------
+# Optional shared secret. When set, every webhook POST carries
+# X-Form-Pipeline-Signature: sha256=<hmac-sha256(secret, body)> so receivers
+# can verify the payload originated from this API.
+WEBHOOK_SECRET: str | None = os.getenv("WEBHOOK_SECRET") or None
+# Per-attempt HTTP timeout when POSTing to a caller's webhook URL. arq retries
+# the delivery up to 4 times with exponential backoff (~0s, 2s, 4s, 8s), so a
+# hung receiver burns ~10s × 4 = ~40s of worker time in the worst case.
+WEBHOOK_TIMEOUT: float = float(os.getenv("WEBHOOK_TIMEOUT", "10"))

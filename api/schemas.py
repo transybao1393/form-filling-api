@@ -71,3 +71,69 @@ class JobStatusResponse(BaseModel):
     completed_at: str | None = None
     error: str | None = None
     download_url: str | None = None
+
+
+class WebhookPayload(BaseModel):
+    """Shape of the JSON body POSTed to a caller's `webhook_url` when a job
+    reaches a terminal state. Documented here so receivers can codegen a
+    matching model from the OpenAPI spec; not returned by any endpoint."""
+    job_id: str
+    status: JobStatus
+    stage: JobStage
+    submitted_at: str | None = None
+    completed_at: str | None = None
+    error: str | None = None
+    status_url: str
+    download_url: str | None = None
+    result: DataJson | None = Field(
+        default=None,
+        description="Inline data.json — populated only when status == 'completed'.",
+    )
+
+
+# --- /validate-data-json ---------------------------------------------------
+
+DataJsonFormat = Literal["flat", "flatlist", "nested"]
+
+
+class ValidationIssue(BaseModel):
+    loc: list[str | int] = Field(
+        default_factory=list,
+        description="Path to the offending value, e.g. ['items', 0, 'question_number'].",
+    )
+    msg: str
+    type: str
+
+
+class ValidateDataJsonResponse(BaseModel):
+    valid: bool
+    format: DataJsonFormat = Field(
+        ..., description="Auto-detected payload shape (flat / flatlist / nested)."
+    )
+    errors: list[ValidationIssue] = []
+
+
+# --- GET /jobs (list) ------------------------------------------------------
+
+class JobListItem(BaseModel):
+    job_id: str
+    status: JobStatus
+    stage: JobStage
+    percent: int = Field(0, ge=0, le=100)
+    submitted_at: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    error: str | None = None
+    questionnaire_filename: str | None = None
+    reference_filenames: list[str] = []
+    questionnaire_title: str | None = None
+    has_webhook: bool = False
+    status_url: str
+    download_url: str | None = None
+
+
+class JobListResponse(BaseModel):
+    total: int = Field(..., description="Number of jobs matching the filters (pre-pagination).")
+    limit: int
+    offset: int
+    items: list[JobListItem]

@@ -70,6 +70,7 @@ def create(
     questionnaire_filename: str,
     reference_filenames: list[str],
     questionnaire_title: str | None,
+    webhook_url: str | None = None,
 ) -> Path:
     """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/."""
     d = job_dir(job_id)
@@ -80,6 +81,7 @@ def create(
         "questionnaire_filename": questionnaire_filename,
         "reference_filenames": reference_filenames,
         "questionnaire_title": questionnaire_title,
+        "webhook_url": webhook_url,
     })
 
     _atomic_write_json(state_path(job_id), {
@@ -103,12 +105,22 @@ def get_state(job_id: str) -> dict[str, Any] | None:
     return json.loads(p.read_text())
 
 
-def get_meta(job_id: str) -> dict[str, Any]:
-    return json.loads(meta_path(job_id).read_text())
+def get_meta(job_id: str) -> dict[str, Any] | None:
+    p = meta_path(job_id)
+    if not p.exists():
+        return None
+    return json.loads(p.read_text())
 
 
 def update_state(job_id: str, **kwargs: Any) -> None:
-    """Merge kwargs into state.json atomically."""
+    """Merge kwargs into state.json atomically.
+
+    No-op if the job dir was deleted concurrently (DELETE /jobs/{id} mid-run);
+    we don't want to resurrect a state.json the user just asked us to remove.
+    """
+    if not job_dir(job_id).exists():
+        log.info("update_state: job_id=%s deleted, skipping write", job_id)
+        return
     p = state_path(job_id)
     state = json.loads(p.read_text()) if p.exists() else {"job_id": job_id}
     state.update(kwargs)
@@ -116,10 +128,16 @@ def update_state(job_id: str, **kwargs: Any) -> None:
 
 
 def write_result(job_id: str, data: dict[str, Any]) -> None:
+    if not job_dir(job_id).exists():
+        log.info("write_result: job_id=%s deleted, skipping write", job_id)
+        return
     _atomic_write_json(result_path(job_id), data)
 
 
 def mark_failed(job_id: str, exc: BaseException) -> None:
+    if not job_dir(job_id).exists():
+        log.info("mark_failed: job_id=%s deleted, skipping write", job_id)
+        return
     error_path(job_id).write_text("".join(traceback.format_exception(exc)))
     update_state(
         job_id,
@@ -129,6 +147,77 @@ def mark_failed(job_id: str, exc: BaseException) -> None:
         completed_at=_now_iso(),
         error=f"{type(exc).__name__}: {exc}",
     )
+
+
+def delete(job_id: str) -> bool:
+    """Remove JOBS_DIR/<job_id>/ recursively. Returns True if removed,
+    False if it didn't exist (caller should map that to HTTP 404)."""
+    d = job_dir(job_id)
+    if not d.exists():
+        return False
+    shutil.rmtree(d, ignore_errors=False)
+    log.info("delete: removed job_id=%s", job_id)
+    return True
+
+
+def list_jobs(
+    *,
+    statuses: set[str] | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Return one record per job dir (state ∪ a select subset of meta),
+    filtered by status / submitted_at window, sorted newest-first.
+
+    Skips dirs missing state.json (a create() that hasn't completed its
+    atomic write yet) and dirs whose state.json is corrupt — listing should
+    never throw on a single bad job.
+
+    Cost is O(N) state.json + meta.json reads. Fine up to ~10k jobs;
+    beyond that, swap for an index. Result.json is intentionally never
+    read here (large; not needed for list views).
+    """
+    out: list[dict[str, Any]] = []
+    if not config.JOBS_DIR.exists():
+        return out
+    for child in config.JOBS_DIR.iterdir():
+        if not child.is_dir():
+            continue
+        sp = child / "state.json"
+        if not sp.exists():
+            continue
+        try:
+            state = json.loads(sp.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if statuses and state.get("status") not in statuses:
+            continue
+        if since or until:
+            sub = state.get("submitted_at")
+            try:
+                t = datetime.fromisoformat(sub) if sub else None
+            except ValueError:
+                t = None
+            if since is not None and (t is None or t < since):
+                continue
+            if until is not None and (t is None or t >= until):
+                continue
+        meta: dict[str, Any] = {}
+        mp = child / "meta.json"
+        if mp.exists():
+            try:
+                meta = json.loads(mp.read_text())
+            except (json.JSONDecodeError, OSError):
+                meta = {}
+        out.append({
+            **state,
+            "questionnaire_filename": meta.get("questionnaire_filename"),
+            "reference_filenames": meta.get("reference_filenames") or [],
+            "questionnaire_title": meta.get("questionnaire_title"),
+            "has_webhook": bool(meta.get("webhook_url")),
+        })
+    out.sort(key=lambda r: r.get("submitted_at") or "", reverse=True)
+    return out
 
 
 def cleanup_expired() -> int:

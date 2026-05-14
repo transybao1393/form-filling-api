@@ -16,6 +16,7 @@ from typing import Any
 
 from arq import cron
 from arq.connections import RedisSettings
+from arq.worker import func
 
 from . import config, job_store, jobs
 
@@ -43,7 +44,14 @@ async def on_startup(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions = [jobs.run_generation]
+    functions = [
+        jobs.run_generation,
+        # max_tries=4 → arq retries with exponential backoff (~0s, 2s, 4s,
+        # 8s) on raised exceptions, so a transiently-down receiver still
+        # eventually gets the callback. 4xx responses don't raise, so a
+        # misconfigured receiver is dropped after one attempt.
+        func(jobs.deliver_webhook, max_tries=4),
+    ]
     cron_jobs = [
         cron(cleanup_job, hour=set(range(0, 24, 6)), minute=0, run_at_startup=False),
     ]
