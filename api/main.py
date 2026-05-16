@@ -24,7 +24,7 @@ from uuid import uuid4
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
-from fastapi import FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
@@ -33,7 +33,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from . import config, job_store, ollama_client
+from . import auth_utils, config, db as app_db, job_store, models, ollama_client, usage
 from .file_validation import (
     JSON_ONLY,
     MaxBodySizeMiddleware,
@@ -42,6 +42,16 @@ from .file_validation import (
     QUESTIONNAIRE_SUFFIXES,
     REFERENCE_SUFFIXES,
     validate_upload,
+)
+from .routers import (
+    api_keys as api_keys_router,
+    auth as auth_router,
+    billing as billing_router,
+    documents as documents_router,
+    review as review_router,
+    team as team_router,
+    templates as templates_router,
+    webhooks as webhooks_router,
 )
 from .schemas import (
     DataJson,
@@ -70,6 +80,7 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config.JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    await app_db.init_models()
     pool: ArqRedis = await create_pool(
         RedisSettings(
             host=config.REDIS_HOST,
@@ -79,9 +90,9 @@ async def lifespan(app: FastAPI):
     )
     app.state.arq = pool
     log.info(
-        "api startup: JOBS_DIR=%s REDIS=%s:%d OLLAMA_URL=%s OLLAMA_MODEL=%s",
+        "api startup: JOBS_DIR=%s REDIS=%s:%d OLLAMA_URL=%s OLLAMA_MODEL=%s DB=%s",
         config.JOBS_DIR, config.REDIS_HOST, config.REDIS_PORT,
-        config.OLLAMA_URL, config.OLLAMA_MODEL,
+        config.OLLAMA_URL, config.OLLAMA_MODEL, config.DATABASE_URL,
     )
     try:
         yield
@@ -190,6 +201,71 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # --------------------------------------------------------------------------- #
+# Sub-routers (auth, api keys; later phases: templates, documents, members,
+# webhook deliveries, billing). Tagged so /docs and /scalar group them.
+# --------------------------------------------------------------------------- #
+app.include_router(auth_router.router)
+app.include_router(api_keys_router.router)
+app.include_router(templates_router.router)
+app.include_router(documents_router.router)
+app.include_router(review_router.router)
+app.include_router(team_router.router)
+app.include_router(webhooks_router.router)
+app.include_router(billing_router.router)
+
+
+# --------------------------------------------------------------------------- #
+# Auth helper for legacy endpoints (Phase 2).
+# --------------------------------------------------------------------------- #
+
+async def _track_fill(current_user: models.User | None) -> None:
+    """Bump the team's fills_count for the current billing period."""
+    if current_user is not None:
+        await usage.increment(current_user.team_id, fills_count=1)
+
+
+async def _enforce_fill_quota(current_user: models.User | None) -> None:
+    """Reject with 402 if the team is over its monthly fills cap.
+
+    Anonymous callers bypass (legacy / AUTH_REQUIRED=0); flip AUTH_REQUIRED
+    to close the gap before going to production.
+    """
+    if current_user is None:
+        return
+    from .db import get_sessionmaker
+    async with get_sessionmaker()() as session:
+        within, used, cap = await usage.check_limit(
+            session, current_user.team_id, "fills",
+        )
+    if not within:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"monthly fills quota exceeded ({used}/{cap}). "
+                "Upgrade your plan at /billing/checkout."
+            ),
+        )
+
+
+def _check_job_access(job_id: str, current_user: models.User | None) -> None:
+    """Raise 404 if `current_user` can't access this job.
+
+    - Anonymous callers (current_user is None) can only see jobs created
+      without a team_id (legacy / pre-auth state, only reachable when
+      AUTH_REQUIRED=0).
+    - Authenticated callers can only see jobs in their own team.
+    The 404 (vs 403) prevents enumerating other teams' job_ids.
+    """
+    owns = job_store.team_owns(
+        job_id, current_user.team_id if current_user is not None else None,
+    )
+    if owns is None:
+        return  # job doesn't exist — caller's existing state-is-None check 404s
+    if not owns:
+        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+
+
+# --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
 
@@ -277,6 +353,7 @@ async def submit_job(
             "X-Form-Pipeline-Signature: sha256=<hmac> for verification."
         ),
     ),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> JobSubmitResponse:
     validate_upload(
         questionnaire_file,
@@ -297,6 +374,23 @@ async def submit_job(
 
     if webhook_url is not None:
         webhook_url = _validate_webhook_url(webhook_url)
+
+    # Enforce per-team monthly quotas when authenticated. Anonymous callers
+    # bypass quotas; flip AUTH_REQUIRED=1 to close the gap.
+    if current_user is not None:
+        from .db import get_sessionmaker
+        async with get_sessionmaker()() as session:
+            within, used, cap = await usage.check_limit(
+                session, current_user.team_id, "jobs",
+            )
+        if not within:
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    f"monthly jobs quota exceeded ({used}/{cap}). "
+                    "Upgrade your plan at /billing/checkout."
+                ),
+            )
 
     job_id = uuid4().hex
     q_name = Path(questionnaire_file.filename or "questionnaire.bin").name
@@ -321,6 +415,7 @@ async def submit_job(
         reference_filenames=ref_names,
         questionnaire_title=questionnaire_title,
         webhook_url=webhook_url,
+        team_id=current_user.team_id if current_user is not None else None,
     )
 
     pool: ArqRedis = app.state.arq
@@ -376,13 +471,21 @@ async def list_jobs_endpoint(
     ),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> JobListResponse:
     since_dt = _parse_iso_datetime(since, "since") if since else None
     until_dt = _parse_iso_datetime(until, "until") if until else None
     statuses = set(status) if status else None
 
+    if current_user is not None:
+        team_filter: int | None | object = current_user.team_id
+    else:
+        # Anonymous caller (only reachable when AUTH_REQUIRED=0). Restrict to
+        # legacy/pre-auth jobs so authed teams' work stays private.
+        team_filter = job_store._TEAM_FILTER_ANONYMOUS
+
     rows = job_store.list_jobs(
-        statuses=statuses, since=since_dt, until=until_dt,
+        statuses=statuses, since=since_dt, until=until_dt, team_id=team_filter,
     )
     total = len(rows)
     page = rows[offset : offset + limit]
@@ -397,12 +500,15 @@ async def list_jobs_endpoint(
             status_url=f"/jobs/{row['job_id']}",
             download_url=(
                 f"/jobs/{row['job_id']}/data.json"
-                if row.get("status") == "completed" else None
+                if row.get("status") in _RESULT_AVAILABLE_STATUSES else None
             ),
         )
         for row in page
     ]
     return JobListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+_RESULT_AVAILABLE_STATUSES = {"review", "completed"}
 
 
 @app.get(
@@ -412,20 +518,25 @@ async def list_jobs_endpoint(
     summary="Job status & progress",
     description=(
         "Returns the current state of a job: status (queued / running / "
-        "completed / failed), `percent` (0–100), machine-readable `stage`, "
-        "and human-readable `stage_text`. Poll this endpoint at ~1 Hz."
+        "review / completed / failed), `percent` (0–100), machine-readable "
+        "`stage`, and human-readable `stage_text`. Poll this endpoint at ~1 Hz."
     ),
     responses={
         200: {"description": "Current job state"},
         404: {"description": "Unknown job_id"},
     },
 )
-async def get_job_status(job_id: str) -> JobStatusResponse:
+async def get_job_status(
+    job_id: str,
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
+) -> JobStatusResponse:
     state = job_store.get_state(job_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+    _check_job_access(job_id, current_user)
     download_url = (
-        f"/jobs/{job_id}/data.json" if state.get("status") == "completed" else None
+        f"/jobs/{job_id}/data.json"
+        if state.get("status") in _RESULT_AVAILABLE_STATUSES else None
     )
     return JobStatusResponse(download_url=download_url, **state)
 
@@ -448,7 +559,11 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
         404: {"description": "Unknown job_id"},
     },
 )
-async def delete_job(job_id: str) -> Response:
+async def delete_job(
+    job_id: str,
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
+) -> Response:
+    _check_job_access(job_id, current_user)
     if not job_store.delete(job_id):
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
     return Response(status_code=204)
@@ -472,14 +587,18 @@ async def delete_job(job_id: str) -> Response:
         409: {"description": "Job not completed yet (or it failed)"},
     },
 )
-async def download_result(job_id: str):
+async def download_result(
+    job_id: str,
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
+):
     state = job_store.get_state(job_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
-    if state.get("status") != "completed":
+    _check_job_access(job_id, current_user)
+    if state.get("status") not in _RESULT_AVAILABLE_STATUSES:
         return JSONResponse(
             status_code=409,
-            content={"detail": "job not completed", "current": state},
+            content={"detail": "job result not available yet", "current": state},
         )
     return FileResponse(
         path=str(job_store.result_path(job_id)),
@@ -523,14 +642,16 @@ async def preview(
         default=100, ge=50, le=200,
         description="Render DPI (50–200). Cached PNGs are keyed by this value.",
     ),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> FileResponse:
     state = job_store.get_state(job_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
-    if state.get("status") != "completed":
+    _check_job_access(job_id, current_user)
+    if state.get("status") not in _RESULT_AVAILABLE_STATUSES:
         return JSONResponse(  # type: ignore[return-value]
             status_code=409,
-            content={"detail": "job not completed", "current": state},
+            content={"detail": "job result not available yet", "current": state},
         )
 
     preview_png = job_store.job_dir(job_id) / f"preview-{dpi}.png"
@@ -642,6 +763,7 @@ async def fill_job(
         default=None,
         description="Optional format override: flat | flatlist | nested",
     ),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> FileResponse:
     if format is not None and format not in _FILL_FORMAT_OPTIONS:
         raise HTTPException(
@@ -652,11 +774,13 @@ async def fill_job(
     state = job_store.get_state(job_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
-    if state.get("status") != "completed":
+    _check_job_access(job_id, current_user)
+    if state.get("status") not in _RESULT_AVAILABLE_STATUSES:
         return JSONResponse(  # type: ignore[return-value]
             status_code=409,
-            content={"detail": "job not completed", "current": state},
+            content={"detail": "job result not available yet", "current": state},
         )
+    await _enforce_fill_quota(current_user)
 
     if form_file and form_file.filename:
         validate_upload(form_file, allowed_suffixes=PDF_OR_DOCX, label="form_file")
@@ -720,7 +844,7 @@ async def fill_job(
             answers_path = tmp_path / Path(answers_file.filename).name
             _save_upload(answers_file, answers_path)
 
-        return await _run_fill_and_respond(
+        _resp = await _run_fill_and_respond(
             form_path=form_path,
             data_path=data_path,
             answers_path=answers_path,
@@ -728,6 +852,8 @@ async def fill_job(
             tmp_dir=tmp,
             extra_headers={"X-Form-Source": form_source},
         )
+        await _track_fill(current_user)
+        return _resp
     except HTTPException:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
@@ -777,12 +903,14 @@ async def fill_form(
     format: str | None = Form(
         default=None, description="Optional format override: flat | flatlist | nested"
     ),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> FileResponse:
     if format is not None and format not in _FILL_FORMAT_OPTIONS:
         raise HTTPException(
             status_code=400,
             detail=f"format must be one of {sorted(_FILL_FORMAT_OPTIONS)}, got {format!r}",
         )
+    await _enforce_fill_quota(current_user)
 
     validate_upload(form_file, allowed_suffixes=PDF_OR_DOCX, label="form_file")
     validate_upload(data_file, allowed_suffixes=JSON_ONLY, label="data_file")
@@ -809,13 +937,15 @@ async def fill_form(
             answers_path = tmp_path / Path(answers_file.filename).name
             _save_upload(answers_file, answers_path)
 
-        return await _run_fill_and_respond(
+        _resp = await _run_fill_and_respond(
             form_path=form_path,
             data_path=data_path,
             answers_path=answers_path,
             format_override=format,
             tmp_dir=tmp,
         )
+        await _track_fill(current_user)
+        return _resp
     except HTTPException:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
@@ -855,6 +985,7 @@ async def validate_data_json(
     data_file: UploadFile = File(
         ..., description="data.json — flat, flat-list, or nested",
     ),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> ValidateDataJsonResponse:
     validate_upload(data_file, allowed_suffixes=JSON_ONLY, label="data_file")
     raw = await data_file.read()
@@ -955,12 +1086,14 @@ async def to_acroform(
     format: str | None = Form(
         default=None, description="Optional format override: flat | flatlist | nested"
     ),
+    current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> FileResponse:
     if format is not None and format not in _FILL_FORMAT_OPTIONS:
         raise HTTPException(
             status_code=400,
             detail=f"format must be one of {sorted(_FILL_FORMAT_OPTIONS)}, got {format!r}",
         )
+    await _enforce_fill_quota(current_user)
 
     validate_upload(form_file, allowed_suffixes=PDF_ONLY, label="form_file")
     if data_file and data_file.filename:
@@ -995,6 +1128,7 @@ async def to_acroform(
             if data_file is None or not data_file.filename:
                 # No data → return the input unchanged.
                 log.info("to_acroform: %s already AcroForm; returning as-is", form_name)
+                await _track_fill(current_user)
                 return FileResponse(
                     path=str(src),
                     media_type="application/pdf",
@@ -1035,6 +1169,7 @@ async def to_acroform(
                 "to_acroform: %s already AcroForm; filled %d/%d native widgets",
                 form_name, report["num_filled"], report["num_fields"],
             )
+            await _track_fill(current_user)
             return FileResponse(
                 path=str(out),
                 media_type="application/pdf",
@@ -1100,6 +1235,7 @@ async def to_acroform(
             form_name, report["num_fields"], report["num_filled"],
             report["num_carried_over"],
         )
+        await _track_fill(current_user)
         return FileResponse(
             path=str(out),
             media_type="application/pdf",
@@ -1141,8 +1277,8 @@ async def _ensure_filled_pdf(job_id: str) -> Path:
     state = job_store.get_state(job_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
-    if state.get("status") != "completed":
-        raise HTTPException(status_code=409, detail="job not completed")
+    if state.get("status") not in _RESULT_AVAILABLE_STATUSES:
+        raise HTTPException(status_code=409, detail="job result not available yet")
 
     cached = job_store.job_dir(job_id) / "filled.pdf"
     if cached.exists():

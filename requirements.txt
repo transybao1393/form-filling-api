@@ -38,6 +38,14 @@ cryptography<47
 # polished /scalar API reference page
 scalar-fastapi>=1.0.0
 
+# Auth + persistence (Phase 1 onwards). SQLAlchemy 2.0 async + aiosqlite
+# back the SQLite file at JOBS_DIR/_app.db. argon2-cffi for password hashing.
+# email-validator is required by pydantic's EmailStr type.
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.20.0
+argon2-cffi>=23.1.0
+email-validator>=2.0.0
+
 # test runner — used by `docker compose run --rm api pytest tests/`. Small
 # (~5 MB), kept in the prod image so tests run inside the same image that's
 # deployed (no separate test image, no venv).

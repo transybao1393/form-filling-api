@@ -37,7 +37,11 @@ class HealthResponse(BaseModel):
 
 # --- async job models ------------------------------------------------------
 
-JobStatus = Literal["queued", "running", "completed", "failed"]
+# "review" is added in Phase 3: a job whose extraction succeeded but where
+# at least one item has confidence == "NONE", surfacing for human approval
+# before being treated as final. POST /jobs/{id}/approve transitions to
+# "completed" (or auto-skips review when every item is HIGH/MEDIUM).
+JobStatus = Literal["queued", "running", "review", "completed", "failed"]
 JobStage = Literal[
     "queued",
     "extracting_questionnaire",
@@ -46,6 +50,7 @@ JobStage = Literal[
     "calling_llm",
     "normalizing",
     "saving",
+    "review",
     "completed",
     "failed",
 ]

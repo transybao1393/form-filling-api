@@ -71,8 +71,14 @@ def create(
     reference_filenames: list[str],
     questionnaire_title: str | None,
     webhook_url: str | None = None,
+    team_id: int | None = None,
 ) -> Path:
-    """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/."""
+    """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/.
+
+    `team_id` scopes the job to a Team (Phase 2 onwards). None means the job
+    was created by an unauthenticated client (legacy / AUTH_REQUIRED=0) and
+    is only visible to other unauthenticated callers.
+    """
     d = job_dir(job_id)
     (d / "uploads").mkdir(parents=True, exist_ok=True)
 
@@ -82,6 +88,7 @@ def create(
         "reference_filenames": reference_filenames,
         "questionnaire_title": questionnaire_title,
         "webhook_url": webhook_url,
+        "team_id": team_id,
     })
 
     _atomic_write_json(state_path(job_id), {
@@ -160,14 +167,24 @@ def delete(job_id: str) -> bool:
     return True
 
 
+_TEAM_FILTER_ANONYMOUS = object()  # sentinel: filter to jobs with team_id == None
+
+
 def list_jobs(
     *,
     statuses: set[str] | None = None,
     since: datetime | None = None,
     until: datetime | None = None,
+    team_id: int | None | object = None,
 ) -> list[dict[str, Any]]:
     """Return one record per job dir (state ∪ a select subset of meta),
     filtered by status / submitted_at window, sorted newest-first.
+
+    `team_id` filter semantics:
+        - None (default): no team filter — returns ALL jobs (admin view).
+        - int: returns only jobs whose meta.team_id matches.
+        - _TEAM_FILTER_ANONYMOUS: returns only jobs with meta.team_id is None
+          (i.e. created before auth was enabled).
 
     Skips dirs missing state.json (a create() that hasn't completed its
     atomic write yet) and dirs whose state.json is corrupt — listing should
@@ -209,15 +226,35 @@ def list_jobs(
                 meta = json.loads(mp.read_text())
             except (json.JSONDecodeError, OSError):
                 meta = {}
+        meta_team = meta.get("team_id")
+        if team_id is _TEAM_FILTER_ANONYMOUS:
+            if meta_team is not None:
+                continue
+        elif isinstance(team_id, int):
+            if meta_team != team_id:
+                continue
         out.append({
             **state,
             "questionnaire_filename": meta.get("questionnaire_filename"),
             "reference_filenames": meta.get("reference_filenames") or [],
             "questionnaire_title": meta.get("questionnaire_title"),
             "has_webhook": bool(meta.get("webhook_url")),
+            "team_id": meta_team,
         })
     out.sort(key=lambda r: r.get("submitted_at") or "", reverse=True)
     return out
+
+
+def team_owns(job_id: str, team_id: int | None) -> bool | None:
+    """Return True if `team_id` matches the job's stored team_id.
+
+    Returns False on mismatch and None if the job does not exist. Used by
+    the API layer to map (no access | not found) → HTTP 404.
+    """
+    meta = get_meta(job_id)
+    if meta is None:
+        return None
+    return meta.get("team_id") == team_id
 
 
 def cleanup_expired() -> int:

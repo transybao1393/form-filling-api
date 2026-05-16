@@ -104,3 +104,49 @@ WEBHOOK_SECRET: str | None = os.getenv("WEBHOOK_SECRET") or None
 # the delivery up to 4 times with exponential backoff (~0s, 2s, 4s, 8s), so a
 # hung receiver burns ~10s × 4 = ~40s of worker time in the worst case.
 WEBHOOK_TIMEOUT: float = float(os.getenv("WEBHOOK_TIMEOUT", "10"))
+
+# --- Database (SQLite, async) ------------------------------------------------
+# DB file lives inside JOBS_DIR so it shares the mounted volume in Docker.
+# Override with DATABASE_URL=sqlite+aiosqlite:///path/to/file for a different
+# location or a non-SQLite backend (Postgres would also need asyncpg installed).
+DATABASE_URL: str = os.getenv(
+    "DATABASE_URL",
+    f"sqlite+aiosqlite:///{(JOBS_DIR / '_app.db').as_posix()}",
+)
+
+# --- Auth / sessions / API keys ---------------------------------------------
+# Session cookie lifetime. 30 days matches typical "stay signed in" UX.
+SESSION_LIFETIME_DAYS: int = int(os.getenv("SESSION_LIFETIME_DAYS", "30"))
+
+# Set the session cookie's Secure flag. Must be True behind HTTPS in prod;
+# keep False for local-dev HTTP, or browsers reject the cookie silently.
+SESSION_COOKIE_SECURE: bool = os.getenv("SESSION_COOKIE_SECURE", "0") == "1"
+
+# Prefix tag baked into freshly-minted API keys: "sk_<env>_<32 hex>".
+# Use "live" in production, "test" in staging/dev so leaked keys are
+# obvious in logs.
+API_KEY_ENV: str = os.getenv("API_KEY_ENV", "test")
+
+# When True, the existing job/fill endpoints require a current user (Phase 2
+# behavior). Keep False until you've wired team scoping into job_store —
+# turning this on without scoping makes every authed user see every job.
+AUTH_REQUIRED: bool = os.getenv("AUTH_REQUIRED", "0") == "1"
+
+# --- Billing ---------------------------------------------------------------
+# Public-facing base URL for checkout return / cancel links. Override per
+# environment. Trailing slash is stripped.
+APP_BASE_URL: str = os.getenv("APP_BASE_URL", "http://localhost:3000").rstrip("/")
+
+# PayOS (Vietnam). All three are required to actually create a payment link;
+# unset → the /billing/checkout endpoint refuses VN orders with 503.
+PAYOS_CLIENT_ID: str | None = os.getenv("PAYOS_CLIENT_ID") or None
+PAYOS_API_KEY: str | None = os.getenv("PAYOS_API_KEY") or None
+PAYOS_CHECKSUM_KEY: str | None = os.getenv("PAYOS_CHECKSUM_KEY") or None
+PAYOS_API_BASE: str = os.getenv("PAYOS_API_BASE", "https://api-merchant.payos.vn").rstrip("/")
+
+# Payhip (international). API key is required to record sales; the
+# webhook secret verifies signed callbacks.
+PAYHIP_API_KEY: str | None = os.getenv("PAYHIP_API_KEY") or None
+PAYHIP_WEBHOOK_SECRET: str | None = os.getenv("PAYHIP_WEBHOOK_SECRET") or None
+PAYHIP_PRODUCT_LINK_PRO: str | None = os.getenv("PAYHIP_PRODUCT_LINK_PRO") or None
+PAYHIP_PRODUCT_LINK_SCALE: str | None = os.getenv("PAYHIP_PRODUCT_LINK_SCALE") or None

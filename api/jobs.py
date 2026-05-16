@@ -22,7 +22,7 @@ import httpx
 from arq.worker import Retry
 from pydantic import ValidationError
 
-from . import config, job_store, ollama_client, prompts
+from . import config, db as app_db, job_store, models, ollama_client, prompts, usage
 from .extractors import UnsupportedFileType, extract_text
 from .schemas import DataJson
 
@@ -185,14 +185,32 @@ async def run_generation(ctx: dict[str, Any], job_id: str) -> None:
         update(percent=99, stage="saving", stage_text="Writing data.json")
         job_store.write_result(job_id, data.model_dump())
 
+        # Phase 3: surface low-confidence answers for human review instead of
+        # silently shipping "-" for fields the model couldn't find. Any item
+        # whose confidence is NONE — including filler answers that _normalize
+        # coerced to NONE — blocks auto-completion. POST /jobs/{id}/approve
+        # transitions review → completed.
+        needs_review = any(item.confidence == "NONE" for item in data.items)
+        terminal_status = "review" if needs_review else "completed"
+        terminal_stage = "review" if needs_review else "completed"
+        terminal_text = (
+            "Awaiting reviewer — open items need a human"
+            if needs_review else "Done"
+        )
+
         update(
             percent=100,
-            status="completed",
-            stage="completed",
-            stage_text="Done",
+            status=terminal_status,
+            stage=terminal_stage,
+            stage_text=terminal_text,
             completed_at=_now_iso(),
         )
-        log.info("run_generation: completed job_id=%s items=%d", job_id, len(data.items))
+        log.info(
+            "run_generation: %s job_id=%s items=%d none=%d",
+            terminal_status, job_id, len(data.items),
+            sum(1 for i in data.items if i.confidence == "NONE"),
+        )
+        await usage.increment(meta.get("team_id"), jobs_count=1)
         await _maybe_enqueue_webhook(ctx, job_id)
 
     except Exception as e:
@@ -223,6 +241,40 @@ async def _maybe_enqueue_webhook(ctx: dict[str, Any], job_id: str) -> None:
     log.info("_maybe_enqueue_webhook: queued for job_id=%s", job_id)
 
 
+async def _record_delivery(
+    *,
+    team_id: int | None,
+    job_id: str,
+    event: str,
+    url: str,
+    attempt: int,
+    http_status: int | None,
+    response_excerpt: str | None,
+    error: str | None,
+) -> None:
+    """Persist one webhook-delivery attempt to the DB. Best-effort — a DB
+    failure here must not block the worker, so we swallow exceptions."""
+    try:
+        sm = app_db.get_sessionmaker()
+        async with sm() as session:
+            session.add(
+                models.WebhookDelivery(
+                    team_id=team_id,
+                    job_id=job_id,
+                    event=event,
+                    url=url,
+                    http_status=http_status,
+                    attempt=attempt,
+                    delivered_at=datetime.now(timezone.utc),
+                    response_excerpt=(response_excerpt[:500] if response_excerpt else None),
+                    error=(error[:500] if error else None),
+                )
+            )
+            await session.commit()
+    except Exception as e:
+        log.warning("_record_delivery: failed to persist row: %s", e)
+
+
 async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
     """POST the terminal-state payload to the caller's webhook_url. Raises on
     network errors / 5xx so arq retries with exponential backoff; 4xx is
@@ -236,10 +288,13 @@ async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
     if not webhook_url:
         return
 
+    team_id = meta.get("team_id")
     status = state.get("status")
-    download_url = f"/jobs/{job_id}/data.json" if status == "completed" else None
+    event = f"job.{status}"
+    result_available = status in ("review", "completed")
+    download_url = f"/jobs/{job_id}/data.json" if result_available else None
     result_data: dict[str, Any] | None = None
-    if status == "completed":
+    if result_available:
         rp = job_store.result_path(job_id)
         if rp.exists():
             result_data = json.loads(rp.read_text())
@@ -261,7 +316,7 @@ async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
         "Content-Type": "application/json",
         "User-Agent": "form-pipeline-webhook/1",
         "X-Form-Pipeline-Job-Id": job_id,
-        "X-Form-Pipeline-Event": f"job.{status}",
+        "X-Form-Pipeline-Event": event,
     }
     if config.WEBHOOK_SECRET:
         sig = hmac.new(
@@ -283,14 +338,26 @@ async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
             "deliver_webhook: job_id=%s url=%s try=%d network error %s — retry in %.0fs",
             job_id, webhook_url, job_try, e, backoff_s,
         )
+        await _record_delivery(
+            team_id=team_id, job_id=job_id, event=event, url=webhook_url,
+            attempt=job_try, http_status=None,
+            response_excerpt=None, error=f"{type(e).__name__}: {e}",
+        )
         # arq retries only on Retry / CancelledError / RetryJob — a plain
         # exception is treated as a permanent failure.
         raise Retry(defer=backoff_s) from e
+
+    response_excerpt = (resp.text or "")[:500]
 
     if 200 <= resp.status_code < 300:
         log.info(
             "deliver_webhook: job_id=%s url=%s try=%d → %d OK",
             job_id, webhook_url, job_try, resp.status_code,
+        )
+        await _record_delivery(
+            team_id=team_id, job_id=job_id, event=event, url=webhook_url,
+            attempt=job_try, http_status=resp.status_code,
+            response_excerpt=response_excerpt, error=None,
         )
         return
     if 400 <= resp.status_code < 500:
@@ -298,9 +365,19 @@ async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
             "deliver_webhook: job_id=%s url=%s try=%d → %d, dropping (no retry)",
             job_id, webhook_url, job_try, resp.status_code,
         )
+        await _record_delivery(
+            team_id=team_id, job_id=job_id, event=event, url=webhook_url,
+            attempt=job_try, http_status=resp.status_code,
+            response_excerpt=response_excerpt, error="4xx; no retry",
+        )
         return
     log.warning(
         "deliver_webhook: job_id=%s url=%s try=%d → %d, retry in %.0fs",
         job_id, webhook_url, job_try, resp.status_code, backoff_s,
+    )
+    await _record_delivery(
+        team_id=team_id, job_id=job_id, event=event, url=webhook_url,
+        attempt=job_try, http_status=resp.status_code,
+        response_excerpt=response_excerpt, error=f"5xx; will retry in {backoff_s:.0f}s",
     )
     raise Retry(defer=backoff_s)

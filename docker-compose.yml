@@ -34,6 +34,13 @@ services:
       # the same secret. Unset → no signature header.
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       WEBHOOK_TIMEOUT: ${WEBHOOK_TIMEOUT:-10}
+      # Auth / API keys (Phase 1). AUTH_REQUIRED=0 keeps existing endpoints
+      # open until Phase 2 wires team scoping. API_KEY_ENV tags freshly-minted
+      # keys as live/test so leaks are obvious.
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-0}
+      API_KEY_ENV: ${API_KEY_ENV:-test}
+      SESSION_LIFETIME_DAYS: ${SESSION_LIFETIME_DAYS:-30}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
     volumes:
       - jobs:/var/lib/form-pipeline/jobs
     depends_on:

@@ -18,7 +18,7 @@ from arq import cron
 from arq.connections import RedisSettings
 from arq.worker import func
 
-from . import config, job_store, jobs
+from . import config, db as app_db, job_store, jobs
 
 
 log = logging.getLogger("api.worker")
@@ -36,9 +36,12 @@ async def cleanup_job(ctx: dict[str, Any]) -> int:
 
 async def on_startup(ctx: dict[str, Any]) -> None:
     config.JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    # Race-safe with the api process; create_all is idempotent. The worker
+    # needs the schema in place so deliver_webhook can record attempts.
+    await app_db.init_models()
     log.info(
-        "worker startup: JOBS_DIR=%s OLLAMA_URL=%s OLLAMA_MODEL=%s",
-        config.JOBS_DIR, config.OLLAMA_URL, config.OLLAMA_MODEL,
+        "worker startup: JOBS_DIR=%s OLLAMA_URL=%s OLLAMA_MODEL=%s DB=%s",
+        config.JOBS_DIR, config.OLLAMA_URL, config.OLLAMA_MODEL, config.DATABASE_URL,
     )
     await cleanup_job(ctx)
 
