@@ -105,6 +105,12 @@ WEBHOOK_SECRET: str | None = os.getenv("WEBHOOK_SECRET") or None
 # hung receiver burns ~10s × 4 = ~40s of worker time in the worst case.
 WEBHOOK_TIMEOUT: float = float(os.getenv("WEBHOOK_TIMEOUT", "10"))
 
+# SSRF guard: when True (production default), reject webhook_url values
+# whose resolved host is a loopback / link-local / private / multicast /
+# reserved IP. Set to "0" in self-hosted dev where the webhook receiver
+# legitimately sits on a private network (e.g. localhost during testing).
+WEBHOOK_BLOCK_PRIVATE: bool = os.getenv("WEBHOOK_BLOCK_PRIVATE", "1") == "1"
+
 # --- Database (SQLite, async) ------------------------------------------------
 # DB file lives inside JOBS_DIR so it shares the mounted volume in Docker.
 # Override with DATABASE_URL=sqlite+aiosqlite:///path/to/file for a different

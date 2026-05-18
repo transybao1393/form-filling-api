@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import auth_utils, config, models
 from ..auth_utils import SESSION_COOKIE_NAME
 from ..db import get_db
+from ..rate_limit import limiter
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -70,7 +71,9 @@ def _set_session_cookie(response: Response, session_id: str) -> None:
     status_code=status.HTTP_201_CREATED,
     summary="Create a new account + team and start a session",
 )
+@limiter.limit("3/minute")
 async def signup(
+    request: Request,
     body: SignupRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -111,7 +114,9 @@ async def signup(
     response_model=UserResponse,
     summary="Email + password login (sets session cookie)",
 )
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),

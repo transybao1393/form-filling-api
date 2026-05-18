@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import auth_utils, config, models
 from ..db import get_db
+from ..rate_limit import limiter
 
 
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
@@ -74,8 +75,11 @@ async def list_keys(
     status_code=status.HTTP_201_CREATED,
     summary="Mint a new API key (secret returned once)",
 )
+@limiter.limit("10/minute")
 async def create_key(
+    request: Request,
     body: ApiKeyCreate,
+    response: Response,
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyCreated:

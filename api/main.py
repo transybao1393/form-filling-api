@@ -29,11 +29,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import ValidationError
 from scalar_fastapi import get_scalar_api_reference
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from . import auth_utils, config, db as app_db, job_store, models, ollama_client, usage
+from .rate_limit import limiter
 from .file_validation import (
     JSON_ONLY,
     MaxBodySizeMiddleware,
@@ -94,6 +94,43 @@ async def lifespan(app: FastAPI):
         config.JOBS_DIR, config.REDIS_HOST, config.REDIS_PORT,
         config.OLLAMA_URL, config.OLLAMA_MODEL, config.DATABASE_URL,
     )
+
+    # Loud, operator-targeted warnings for footguns that are fine in dev
+    # but unacceptable in production. Operator must intentionally flip the
+    # env var to silence each one.
+    if not config.AUTH_REQUIRED:
+        log.warning(
+            "AUTH_REQUIRED=0 — every /jobs, /fill-form and /to-acroform "
+            "endpoint accepts anonymous callers. Set AUTH_REQUIRED=1 before "
+            "exposing this service to the public internet."
+        )
+    if not config.SESSION_COOKIE_SECURE:
+        log.warning(
+            "SESSION_COOKIE_SECURE=0 — session cookies will be sent over "
+            "plain HTTP. Set SESSION_COOKIE_SECURE=1 when serving via TLS."
+        )
+    if "*" in config.CORS_ALLOWED_ORIGINS or any(
+        o.startswith("http://") and "localhost" not in o and "127.0.0.1" not in o
+        for o in config.CORS_ALLOWED_ORIGINS
+    ):
+        log.warning(
+            "CORS_ALLOWED_ORIGINS includes a wildcard or a non-loopback "
+            "plain-HTTP origin (%s). Restrict to your dashboard's HTTPS "
+            "origin before production deploy.",
+            config.CORS_ALLOWED_ORIGINS,
+        )
+    if not config.WEBHOOK_BLOCK_PRIVATE:
+        log.warning(
+            "WEBHOOK_BLOCK_PRIVATE=0 — webhook_url SSRF guard is disabled. "
+            "Only safe in single-tenant self-hosted deployments."
+        )
+    if not config.WEBHOOK_SECRET:
+        log.warning(
+            "WEBHOOK_SECRET is unset — outbound webhooks will be unsigned "
+            "and receivers cannot verify the sender. Set WEBHOOK_SECRET to "
+            "a long random string in production."
+        )
+
     try:
         yield
     finally:
@@ -158,14 +195,41 @@ app.openapi = _patched_openapi
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ALLOWED_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    allow_credentials=True,
 )
 
 # Reject oversized request bodies BEFORE multipart parsing — defends against
 # OOM from a hostile upload. Per-file fine-grained checks still run inside
 # each endpoint via validate_upload().
 app.add_middleware(MaxBodySizeMiddleware, max_bytes=config.MAX_REQUEST_BYTES)
+
+
+# Standard browser-protecting headers on every response. CSP is intentionally
+# loose for the /docs + /scalar pages (Swagger UI needs inline scripts);
+# tighten if you front-end the API with a static dashboard host.
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    headers = response.headers
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("X-Frame-Options", "DENY")
+    headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    headers.setdefault(
+        "Permissions-Policy",
+        "geolocation=(), microphone=(), camera=(), payment=()",
+    )
+    # Only emit HSTS on TLS (or when behind a proxy that sets
+    # X-Forwarded-Proto=https). Setting it on a plain-HTTP response would
+    # pin clients to a port that isn't actually serving HTTPS.
+    forwarded = request.headers.get("x-forwarded-proto", "").lower()
+    if request.url.scheme == "https" or forwarded == "https":
+        headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )
+    return response
 
 
 # --------------------------------------------------------------------------- #
@@ -176,26 +240,6 @@ app.add_middleware(MaxBodySizeMiddleware, max_bytes=config.MAX_REQUEST_BYTES)
 # polling, /docs) is free. Storage is the same Redis the queue uses, so
 # multiple uvicorn workers (future) share a counter.
 
-if config.RATE_LIMIT_ENABLED:
-    # Use Redis DB N+1 so a `redis-cli flushdb` of slowapi counters never
-    # touches the arq job queue (which lives on REDIS_DATABASE).
-    _storage_uri = (
-        f"redis://{config.REDIS_HOST}:{config.REDIS_PORT}"
-        f"/{config.REDIS_DATABASE + 1}"
-    )
-else:
-    # In-memory fallback. Resets on restart; counters not shared across workers.
-    _storage_uri = "memory://"
-
-limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=_storage_uri,
-    default_limits=[],
-    enabled=config.RATE_LIMIT_ENABLED,
-    # Attach X-RateLimit-* + Retry-After to every response so clients can
-    # adapt their pacing without trial-and-error.
-    headers_enabled=True,
-)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -1545,10 +1589,16 @@ def _parse_iso_datetime(s: str, field: str) -> datetime:
 
 
 def _validate_webhook_url(url: str) -> str:
-    """Reject anything that isn't a syntactically valid http(s) URL. Returns
-    the trimmed URL on success; raises HTTPException(400) otherwise. Network
-    reachability is NOT checked here — that's what the retrying delivery is
-    for."""
+    """Reject anything that isn't a syntactically valid http(s) URL or that
+    resolves to a private/loopback/link-local/etc. IP (SSRF guard).
+
+    Returns the trimmed URL on success; raises HTTPException(400) otherwise.
+    Network reachability of the receiver is NOT checked here — that's what
+    the retrying delivery is for.
+    """
+    import ipaddress
+    import socket
+
     cleaned = url.strip()
     if not cleaned:
         raise HTTPException(
@@ -1556,7 +1606,7 @@ def _validate_webhook_url(url: str) -> str:
             detail="webhook_url must be a non-empty http(s) URL",
         )
     parsed = urlparse(cleaned)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise HTTPException(
             status_code=400,
             detail=(
@@ -1564,6 +1614,47 @@ def _validate_webhook_url(url: str) -> str:
                 f"(got {url!r})"
             ),
         )
+
+    if not config.WEBHOOK_BLOCK_PRIVATE:
+        return cleaned
+
+    host = parsed.hostname
+    # Resolve every A/AAAA the host points to and reject if ANY of them is
+    # unsafe — an attacker can otherwise DNS-rebind to flip a public IP to
+    # a private one between validation and delivery (we still call this at
+    # request time, so the window is small but real).
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"webhook_url host {host!r} does not resolve: {e}",
+        )
+    addrs: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    for info in infos:
+        sockaddr = info[4]
+        try:
+            addrs.append(ipaddress.ip_address(sockaddr[0]))
+        except ValueError:
+            continue
+    if not addrs:
+        raise HTTPException(
+            status_code=400,
+            detail=f"webhook_url host {host!r} resolved to no usable IPs",
+        )
+    for addr in addrs:
+        if (
+            addr.is_loopback or addr.is_link_local or addr.is_private
+            or addr.is_multicast or addr.is_reserved or addr.is_unspecified
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"webhook_url host {host!r} resolves to a non-public IP "
+                    f"({addr}) — set WEBHOOK_BLOCK_PRIVATE=0 if this is "
+                    "intentional (self-hosted dev)."
+                ),
+            )
     return cleaned
 
 

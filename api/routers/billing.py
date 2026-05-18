@@ -362,6 +362,12 @@ async def payos_webhook(
 
     now = datetime.now(timezone.utc)
     if str(data.get("code")) in ("00", "0"):
+        # Idempotency: PayOS retries on 5xx (and on any timeout) so the same
+        # webhook can arrive multiple times. If we already marked this
+        # invoice paid, just ack — re-running the subscription update below
+        # would re-extend current_period_end on every retry.
+        if invoice.status == "paid":
+            return {"received": True, "duplicate": True, "invoice_status": "paid"}
         invoice.status = "paid"
         invoice.paid_at = now
 
@@ -467,6 +473,20 @@ async def payhip_webhook(
     now = datetime.now(timezone.utc)
 
     if event_type in ("paid", "subscription_paid"):
+        # Idempotency: Payhip may retry on timeout, so the same
+        # transaction_id can arrive twice. Skip if we've already recorded it.
+        existing_q = await db.execute(
+            select(models.Invoice).where(
+                models.Invoice.provider == "payhip",
+                models.Invoice.external_id == str(transaction_id),
+            )
+        )
+        if existing_q.scalar_one_or_none() is not None:
+            return {
+                "received": True, "duplicate": True,
+                "event": event_type, "transaction_id": str(transaction_id),
+            }
+
         invoice = models.Invoice(
             team_id=team_id,
             number=f"PAYHIP-{transaction_id}",
