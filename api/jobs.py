@@ -1,10 +1,10 @@
 """Worker-side job logic for /generate-data-json.
 
 `run_generation(ctx, job_id)` is the function the arq worker invokes. It
-reads inputs from JOBS_DIR/<job_id>/, drives the same pipeline the old sync
-endpoint used (extract → prompt → Ollama → validate → normalize), and
-writes the result alongside the state. Progress is reported between stages
-via job_store.update_state().
+reads inputs from JOBS_DIR/<job_id>/, extracts text from the questionnaire
+and references, hands off to the host-native llm_service for the actual LLM
+work, and writes the returned data.json alongside the state. Progress is
+reported between stages via job_store.update_state().
 """
 
 from __future__ import annotations
@@ -13,93 +13,19 @@ import hashlib
 import hmac
 import json
 import logging
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
 from arq.worker import Retry
-from pydantic import ValidationError
 
-from . import config, db as app_db, job_store, models, ollama_client, prompts, usage
+from . import config, db as app_db, job_store, llm_service_client, models, usage
 from .extractors import UnsupportedFileType, extract_text
 from .schemas import DataJson
 
 
 log = logging.getLogger("api.jobs")
-
-
-# --------------------------------------------------------------------------- #
-# Normalization helpers (moved from main.py — now job logic, not endpoint)
-# --------------------------------------------------------------------------- #
-
-# Filler strings the model emits when it can't find an answer; we coerce
-# these into the sentinel triple ("-", "N/A", "NONE").
-_FILLER_ANSWER_RE = re.compile(
-    r"^\s*(?:-|n/?a|none|null|nil|unknown|tbd|tba|not\s+specified|"
-    r"not\s+mentioned|not\s+available|not\s+provided|not\s+applicable)\s*\.?\s*$",
-    re.IGNORECASE,
-)
-# Leading section-code prefix the model often pastes into `question`
-# (e.g. "F1 ", "ENV-3 ", "S.10 ").
-_SECTION_CODE_RE = re.compile(r"^[A-Za-z]{1,4}[\s.\-]?\d{1,3}[\s.\-:)]+")
-_QUESTION_MAX_LEN = 60
-
-
-def _clean_question(question: str, contextualized: str) -> str:
-    q = question.strip()
-    q = _SECTION_CODE_RE.sub("", q).strip()
-    ctx = contextualized.strip()
-    if ctx and ctx in q:
-        q = q.split(ctx, 1)[0].strip(" /-—–|·.,")
-    if len(q) > _QUESTION_MAX_LEN:
-        cut = q[:_QUESTION_MAX_LEN].rsplit(" ", 1)[0] or q[:_QUESTION_MAX_LEN]
-        q = cut.rstrip(" /-—–|·.,")
-    return q or question.strip()
-
-
-def _normalize(data: DataJson, known_filenames: set[str]) -> None:
-    """Coerce model output toward the canonical schema. Mutates in place."""
-    for item in data.items:
-        item.question = _clean_question(item.question, item.contextualized_question)
-
-        ans = (item.extracted_answer or "").strip()
-        is_filler = not ans or _FILLER_ANSWER_RE.match(ans) is not None
-        is_unknown_source = (
-            item.source_file not in known_filenames
-            and item.source_file != "N/A"
-        )
-
-        if (
-            item.confidence == "NONE"
-            or is_filler
-            or (item.confidence != "NONE" and is_unknown_source)
-        ):
-            if is_unknown_source and not is_filler and item.confidence != "NONE":
-                log.warning(
-                    "answer cited unknown source_file=%r; coercing to NONE",
-                    item.source_file,
-                )
-            item.extracted_answer = "-"
-            item.source_file = "N/A"
-            item.confidence = "NONE"
-
-
-# --------------------------------------------------------------------------- #
-# Validation with one-shot repair
-# --------------------------------------------------------------------------- #
-
-async def _parse_and_validate(
-    raw: str, original_messages: list[dict[str, str]]
-) -> DataJson:
-    """Parse JSON + validate; on failure, ask Ollama to fix it once."""
-    try:
-        return DataJson.model_validate(json.loads(raw))
-    except (json.JSONDecodeError, ValidationError) as e:
-        repair_msgs = prompts.build_repair_messages(original_messages, raw, str(e))
-        second = await ollama_client.chat(repair_msgs)
-        return DataJson.model_validate(json.loads(second))
 
 
 # --------------------------------------------------------------------------- #
@@ -151,45 +77,26 @@ async def run_generation(ctx: dict[str, Any], job_id: str) -> None:
                 refs.append((name, text))
 
         update(
-            percent=35,
-            stage="building_prompt",
-            stage_text="Building prompt for Qwen3:8b",
+            percent=40,
+            stage="calling_llm_service",
+            stage_text="Generating answers",
         )
-        messages = prompts.build_messages(
+        data_dict = await llm_service_client.generate(
             q_text, refs, meta.get("questionnaire_title")
         )
-
-        update(
-            percent=40,
-            stage="calling_llm",
-            stage_text="Generating answers (Qwen3:8b)",
-        )
-        raw = await ollama_client.chat(messages)
-
-        update(
-            percent=90,
-            stage="normalizing",
-            stage_text="Validating and normalizing output",
-        )
-        data = await _parse_and_validate(raw, messages)
-        if meta.get("questionnaire_title"):
-            data.questionnaire_title = meta["questionnaire_title"]
-
-        known = set(meta.get("reference_filenames", []))
-        _normalize(data, known)
-
-        # Defensive: renumber to guarantee F1..Fn even if the model drifted.
-        for i, item in enumerate(data.items, start=1):
-            item.question_number = f"F{i}"
+        # llm_service has already parsed, repaired, normalized, and
+        # renumbered. We re-parse here only so the downstream review-check
+        # logic below can introspect Item objects.
+        data = DataJson.model_validate(data_dict)
 
         update(percent=99, stage="saving", stage_text="Writing data.json")
         job_store.write_result(job_id, data.model_dump())
 
         # Phase 3: surface low-confidence answers for human review instead of
         # silently shipping "-" for fields the model couldn't find. Any item
-        # whose confidence is NONE — including filler answers that _normalize
-        # coerced to NONE — blocks auto-completion. POST /jobs/{id}/approve
-        # transitions review → completed.
+        # whose confidence is NONE — including filler answers the llm_service
+        # already coerced to NONE — blocks auto-completion. POST
+        # /jobs/{id}/approve transitions review → completed.
         needs_review = any(item.confidence == "NONE" for item in data.items)
         terminal_status = "review" if needs_review else "completed"
         terminal_stage = "review" if needs_review else "completed"

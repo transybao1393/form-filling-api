@@ -1,9 +1,95 @@
 # Form Field Detection & Filling Pipeline
 
-Generic pipeline that fills PDF forms from JSON data. One command handles
-**any form + data format combination** — no need to know which adapter to run.
+Generic pipeline that fills PDF forms from JSON data. Ships with two ways
+to use it: a CLI for one-off fills, and a FastAPI service for automated
+end-to-end runs (upload a questionnaire, get back a `data.json`, get back
+the filled form).
 
-## Quick start
+## What's in this repo
+
+Three components, decoupled on purpose so they can be deployed independently:
+
+| Component       | Where it runs                                | What it does                                                                 |
+|-----------------|----------------------------------------------|------------------------------------------------------------------------------|
+| **CLI pipeline** (`run_pipeline.py` + adapters) | Host venv (`.venv/`)                                  | Reads a PDF + `data.json`, writes the filled PDF.                            |
+| **API service** (`api/`)                       | docker-compose (`api` + `worker` + `redis`)            | HTTP endpoints for upload + async LLM job + sync form fill.                  |
+| **LLM service** (`llm_service/`)               | **Native host process** (own venv at `llm_service/.venv/`) | Owns every Ollama concern: prompts, `/api/chat`, JSON parsing, normalization. |
+
+The LLM service runs **outside Docker** because the underlying Ollama daemon
+needs Apple Metal GPU access on macOS (Docker on macOS can't reach the GPU;
+CPU-only Qwen3:8b is ~10× slower).
+
+```
+[ macOS host ]                                          [ docker-compose ]
+
+  Ollama (:11434, native, Metal GPU)                            │
+        ▲                                                       │
+        │ /api/chat                                             │
+  llm_service (:11500, native, own venv)                        │
+        ▲                                                       │
+        │ POST /generate                                        │
+        └────── host.docker.internal:11500 ←──────── api + worker + redis
+```
+
+## API service quick start
+
+You need: Docker, Docker Compose, Python 3.12+, and **Ollama installed on
+the host** (download from <https://ollama.com>) — the Ollama daemon should
+be running on `localhost:11434`.
+
+```bash
+# 1. Start the host-native LLM service.
+#    On first run, this:
+#      • creates llm_service/.venv and installs its requirements
+#      • verifies the `ollama` binary is installed (fails fast if not)
+#      • pulls qwen3:8b if not already in `~/.ollama/models` (~5 GB)
+#      • launches uvicorn on :11500
+#    Idempotent — re-run any time. Subsequent starts are seconds.
+make ollama-service-up
+
+# 2. One-time Docker checks + build the api image.
+make docker-setup
+
+# 3. Start redis + api + worker, then run the test suite to verify.
+make docker-up
+```
+
+When `make docker-up` finishes you'll have:
+
+- API:               <http://localhost:8000>
+- Scalar reference:  <http://localhost:8000/scalar>
+- Swagger UI:        <http://localhost:8000/docs>
+- Health check:      <http://localhost:8000/healthz> (should report
+                      `llm_service: ok`, `redis: ok`)
+
+### Day-to-day
+
+| Want to…                                | Command                       |
+|-----------------------------------------|-------------------------------|
+| Tail api + worker logs                  | `make docker-logs`            |
+| Tail the host LLM service log           | `make ollama-service-logs`    |
+| Re-run the test suite                   | `make docker-test`            |
+| Stop the docker stack (keeps volumes)   | `make docker-down`            |
+| Stop the host LLM service               | `make ollama-service-down`    |
+| Rebuild the LLM service venv from scratch | `make ollama-service-clean && make ollama-service-up` |
+
+### Troubleshooting
+
+- **`make ollama-service-up` says "Ollama not reachable at :11434"** —
+  launch the Ollama desktop app or run `ollama serve` in another terminal.
+- **`/healthz` reports `llm_service: down`** — the host service stopped.
+  Run `make ollama-service-up` again; check `.llm_service.log` if it
+  refuses to start.
+- **`/healthz` reports `redis: down`** — the redis container fell over.
+  `docker compose ps` + `docker compose logs redis`.
+- **Job stuck in `calling_llm_service`** — the host Ollama is probably
+  busy / slow. Tail `make ollama-service-logs` to see the request and
+  Ollama timings.
+
+See `api/README.md` for full endpoint docs, `llm_service/README.md` for
+the LLM service internals.
+
+## CLI pipeline quick start
 
 ```bash
 make setup                    # one-time: install deps into .venv/

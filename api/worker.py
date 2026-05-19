@@ -40,8 +40,8 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     # needs the schema in place so deliver_webhook can record attempts.
     await app_db.init_models()
     log.info(
-        "worker startup: JOBS_DIR=%s OLLAMA_URL=%s OLLAMA_MODEL=%s DB=%s",
-        config.JOBS_DIR, config.OLLAMA_URL, config.OLLAMA_MODEL, config.DATABASE_URL,
+        "worker startup: JOBS_DIR=%s LLM_SERVICE_URL=%s DB=%s",
+        config.JOBS_DIR, config.LLM_SERVICE_URL, config.DATABASE_URL,
     )
     await cleanup_job(ctx)
 
@@ -69,6 +69,6 @@ class WorkerSettings:
     keep_result = 3600
     # Don't auto-retry — caller re-POSTs (per plan).
     max_tries = 1
-    # Per-job hard timeout: typical Ollama call is < 90s, but big inputs can
-    # legitimately need a few minutes. Match OLLAMA_TIMEOUT + buffer.
-    job_timeout = config.OLLAMA_TIMEOUT + 60
+    # Per-job hard timeout. Typical LLM call is < 90s, but big inputs can
+    # legitimately need a few minutes. Match LLM_SERVICE_TIMEOUT + buffer.
+    job_timeout = config.LLM_SERVICE_TIMEOUT + 60

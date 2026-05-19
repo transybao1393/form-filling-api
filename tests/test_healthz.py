@@ -3,14 +3,16 @@
 Schema:
     {
         "status": "ok" | "degraded",
-        "ollama": "ok" | "down",
+        "llm_service": "ok" | "down",
         "redis":  "ok" | "down",
         "model": "<string>",
     }
 
 Top-level `status` is "ok" iff every component is reachable; otherwise
-"degraded". Endpoint always returns 200 — clients read the body to decide
-what to page on (a 503 here would block the load balancer instead).
+"degraded". `llm_service` is "ok" iff the host-native LLM orchestration
+service is up AND its upstream Ollama is reachable. Endpoint always returns
+200 — clients read the body to decide what to page on (a 503 here would
+block the load balancer instead).
 """
 
 from __future__ import annotations
@@ -33,9 +35,9 @@ class TestHealthz:
 
     def test_response_shape(self, http):
         body = http.get("/healthz").json()
-        assert set(body.keys()) == {"status", "ollama", "redis", "model"}
+        assert set(body.keys()) == {"status", "llm_service", "redis", "model"}
         assert body["status"] in {"ok", "degraded"}
-        assert body["ollama"] in {"ok", "down"}
+        assert body["llm_service"] in {"ok", "down"}
         assert body["redis"] in {"ok", "down"}
         assert isinstance(body["model"], str)
         assert body["model"]  # non-empty
@@ -43,7 +45,7 @@ class TestHealthz:
     def test_status_reflects_components(self, http):
         body = http.get("/healthz").json()
         # status must be "ok" iff BOTH dependencies are up.
-        if body["ollama"] == "ok" and body["redis"] == "ok":
+        if body["llm_service"] == "ok" and body["redis"] == "ok":
             assert body["status"] == "ok"
         else:
             assert body["status"] == "degraded"
@@ -56,9 +58,13 @@ class TestHealthz:
 
     def test_model_matches_default_or_env(self, http):
         body = http.get("/healthz").json()
-        # In Docker compose the default is qwen3:8b. Just assert plausible.
-        assert ":" in body["model"] or "/" in body["model"] or body["model"].isalnum() \
-            or body["model"]
+        # When the llm_service is up, model is whatever it reports (default
+        # qwen3:8b). When the llm_service is down, the api falls back to an
+        # empty string — accept both.
+        if body["llm_service"] == "ok":
+            assert body["model"], "model should be non-empty when llm_service is up"
+        else:
+            assert isinstance(body["model"], str)
 
     def test_method_post_not_allowed(self, http):
         r = http.post("/healthz")
@@ -75,6 +81,6 @@ class TestHealthz:
             results = list(ex.map(lambda _: one(), range(20)))
         assert all(code == 200 for code, _ in results)
         # Body should be identical (deterministic) — at most one transition
-        # if Ollama starts/stops mid-test, but we don't expect that here.
+        # if the llm_service starts/stops mid-test, but we don't expect that here.
         bodies = {body for _, body in results}
         assert len(bodies) <= 2, f"too many distinct bodies: {bodies}"

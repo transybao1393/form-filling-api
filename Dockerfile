@@ -32,7 +32,7 @@ COPY run_pipeline.py field_detector.py field_normalizer.py \
 COPY api/ /app/api/
 
 ENV PYTHONUNBUFFERED=1 \
-    OLLAMA_URL=http://host.docker.internal:11434 \
+    LLM_SERVICE_URL=http://host.docker.internal:11500 \
     REDIS_HOST=redis \
     JOBS_DIR=/var/lib/form-pipeline/jobs
 

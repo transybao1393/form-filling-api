@@ -6,31 +6,18 @@ import os
 from pathlib import Path
 
 
-OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
-OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:8b")
+# --- LLM orchestration service ---------------------------------------------
+# The main app no longer talks to Ollama directly. All LLM concerns (prompts,
+# /api/chat, parsing, normalization) live in the host-native `llm_service`
+# process (see llm_service/README.md). From inside docker-compose this is
+# reached via host.docker.internal:11500.
+LLM_SERVICE_URL: str = os.getenv(
+    "LLM_SERVICE_URL", "http://localhost:11500"
+).rstrip("/")
 
-# Per-request HTTP timeout when talking to Ollama (seconds).
-OLLAMA_TIMEOUT: float = float(os.getenv("OLLAMA_TIMEOUT", "300"))
-
-# Context window passed to Ollama. 16384 tokens fits a ~25k-char questionnaire
-# + a couple of ~8k-char references + the JSON response. Going to 32k+ on
-# Apple Silicon adds ~260s of KV-cache allocation per call — don't.
-OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
-
-# Sampling temperature. Low for deterministic structured output.
-OLLAMA_TEMPERATURE: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.1"))
-
-# Per-reference character cap before truncation in the prompt.
-# Rough rule: 1 token ≈ 3.5 chars for English text.
-MAX_CHARS_PER_DOC: int = int(os.getenv("MAX_CHARS_PER_DOC", "8000"))
-
-# Separate cap for the questionnaire — it defines item count, so truncating
-# it loses entire questions while truncating references only weakens
-# individual answers. Sized to fit ~7k tokens within OLLAMA_NUM_CTX=16384,
-# leaving room for system prompt + 2-3 references + JSON output.
-MAX_CHARS_PER_QUESTIONNAIRE: int = int(
-    os.getenv("MAX_CHARS_PER_QUESTIONNAIRE", "25000")
-)
+# Per-request HTTP timeout (seconds). Generous because the underlying
+# Ollama call can take 30–90s on Apple Silicon and we add HTTP overhead.
+LLM_SERVICE_TIMEOUT: float = float(os.getenv("LLM_SERVICE_TIMEOUT", "360"))
 
 # --- arq job queue ---------------------------------------------------------
 REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")

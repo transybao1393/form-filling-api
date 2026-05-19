@@ -11,7 +11,7 @@ import httpx
 from . import config
 
 
-log = logging.getLogger("api.ollama")
+log = logging.getLogger("llm_service.ollama")
 
 
 class OllamaError(RuntimeError):

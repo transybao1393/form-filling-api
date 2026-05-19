@@ -16,8 +16,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      OLLAMA_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: qwen3:8b
+      # Reach the host-native llm_service (started by `make ollama-service-up`).
+      LLM_SERVICE_URL: http://host.docker.internal:11500
       REDIS_HOST: redis
       JOBS_DIR: /var/lib/form-pipeline/jobs
       # Honour host-shell overrides so tests can flip rate limits for one
@@ -67,8 +67,7 @@ services:
     image: form-pipeline:latest
     command: ["arq", "api.worker.WorkerSettings"]
     environment:
-      OLLAMA_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: qwen3:8b
+      LLM_SERVICE_URL: http://host.docker.internal:11500
       REDIS_HOST: redis
       JOBS_DIR: /var/lib/form-pipeline/jobs
       # The worker is what POSTs the webhook (deliver_webhook), so it needs

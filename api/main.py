@@ -5,7 +5,7 @@ Endpoints:
 - GET  /jobs/{job_id}          — current status / progress
 - GET  /jobs/{job_id}/data.json — download the produced data.json
 - POST /fill-form              — sync; returns the filled PDF/DOCX directly
-- GET  /healthz                — Ollama reachability
+- GET  /healthz                — llm_service + redis reachability
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from scalar_fastapi import get_scalar_api_reference
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from . import auth_utils, config, db as app_db, job_store, models, ollama_client, usage
+from . import auth_utils, config, db as app_db, job_store, llm_service_client, models, usage
 from .rate_limit import limiter
 from .file_validation import (
     JSON_ONLY,
@@ -90,9 +90,9 @@ async def lifespan(app: FastAPI):
     )
     app.state.arq = pool
     log.info(
-        "api startup: JOBS_DIR=%s REDIS=%s:%d OLLAMA_URL=%s OLLAMA_MODEL=%s DB=%s",
+        "api startup: JOBS_DIR=%s REDIS=%s:%d LLM_SERVICE_URL=%s DB=%s",
         config.JOBS_DIR, config.REDIS_HOST, config.REDIS_PORT,
-        config.OLLAMA_URL, config.OLLAMA_MODEL, config.DATABASE_URL,
+        config.LLM_SERVICE_URL, config.DATABASE_URL,
     )
 
     # Loud, operator-targeted warnings for footguns that are fine in dev
@@ -320,14 +320,15 @@ def _check_job_access(job_id: str, current_user: models.User | None) -> None:
     summary="Health check (per-component reachability)",
 )
 async def healthz() -> HealthResponse:
-    ollama_ok = await ollama_client.health()
+    llm_health = await llm_service_client.health()
+    llm_ok = llm_health.get("ollama") == "ok"
     redis_ok = await _redis_health()
-    overall = "ok" if (ollama_ok and redis_ok) else "degraded"
+    overall = "ok" if (llm_ok and redis_ok) else "degraded"
     return HealthResponse(
         status=overall,
-        ollama="ok" if ollama_ok else "down",
+        llm_service="ok" if llm_ok else "down",
         redis="ok" if redis_ok else "down",
-        model=config.OLLAMA_MODEL,
+        model=str(llm_health.get("model") or ""),
     )
 
 

@@ -1,11 +1,22 @@
 # Form Field Detection & Filling Pipeline
 #
+# === Full-stack quick start (host Ollama + host llm_service + dockerized API) ===
+#   1. make ollama-service-up    Verify host Ollama, pull qwen3:8b, start the
+#                                host-native llm_service in its own venv.
+#   2. make docker-setup         One-time Docker checks + build the api image.
+#   3. make docker-up            Start redis + api + worker, run tests, ready.
+#
 # === Docker workflow (recommended — runs the API stack and tests inside containers) ===
-#   make docker-setup     One-time setup: verify Docker + Ollama, pull qwen3:8b, build image.
+#   make docker-setup     One-time setup: verify Docker, build image.
 #   make docker-up        Start redis + api + worker, then run the test suite to verify.
 #   make docker-down      Stop the stack (preserves the jobs volume).
 #   make docker-logs      Tail api + worker logs.
 #   make docker-test      Re-run the test suite without restarting.
+#
+# === LLM orchestration service (host-native, runs in its own venv) ============
+#   make ollama-service-up    Start (creates venv on first run; idempotent).
+#   make ollama-service-down  Stop.
+#   make ollama-service-logs  Tail llm_service log.
 #
 # === Host CLI workflow (legacy — runs run_pipeline.py via .venv) ===
 #   make setup
@@ -41,7 +52,8 @@ PIP       := $(VENV)/bin/pip
         run detect normalize fill \
         visualize template preview \
         list clean clean-all distclean \
-        docker-setup docker-up docker-down docker-logs docker-test
+        docker-setup docker-up docker-down docker-logs docker-test \
+        ollama-service-up ollama-service-down ollama-service-logs ollama-service-clean
 
 # ---- Sanity checks ---------------------------------------------------------
 
@@ -191,19 +203,11 @@ docker-setup:
 	  || { echo "ERROR: install Docker first (https://docs.docker.com/get-docker/)."; exit 1; }
 	@docker compose version >/dev/null 2>&1 \
 	  || { echo "ERROR: docker compose plugin not found."; exit 1; }
-	@command -v ollama >/dev/null 2>&1 \
-	  || { echo "ERROR: install Ollama first (https://ollama.com)."; exit 1; }
-	@curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 \
-	  || { echo "ERROR: Ollama not reachable at :11434."; \
-	       echo "  Make sure Ollama listens on 0.0.0.0 so containers can reach it:"; \
-	       echo "    launchctl setenv OLLAMA_HOST 0.0.0.0:11434   # macOS"; \
-	       echo "    osascript -e 'tell app \"Ollama\" to quit' && open -a Ollama"; \
-	       exit 1; }
-	@ollama list 2>/dev/null | awk 'NR>1 {print $$1}' | grep -q '^qwen3:8b$$' \
-	  || ollama pull qwen3:8b
 	docker compose build
 	@echo ""
-	@echo "Setup complete. Next: make docker-up"
+	@echo "Setup complete. Next:"
+	@echo "  1) make ollama-service-up   (start the host-native LLM service)"
+	@echo "  2) make docker-up           (start redis + api + worker)"
 
 docker-up:
 	docker compose up -d
@@ -260,3 +264,65 @@ docker-logs:
 
 docker-down:
 	docker compose down
+
+# ---- LLM orchestration service (host-native, isolated venv) ----------------
+#
+# Runs natively on the host so the upstream Ollama daemon can use the Mac's
+# Metal GPU (Docker on macOS can't reach it; CPU-only Qwen3:8b is ~10× slower).
+# Lives in its own venv so its slim dependency set stays decoupled from the
+# main app's requirements.txt.
+
+LLM_SERVICE_PORT  ?= 11500
+LLM_SERVICE_VENV  := llm_service/.venv
+LLM_SERVICE_PY    := $(LLM_SERVICE_VENV)/bin/python
+LLM_SERVICE_PIP   := $(LLM_SERVICE_VENV)/bin/pip
+LLM_SERVICE_UVI   := $(LLM_SERVICE_VENV)/bin/uvicorn
+LLM_SERVICE_PID   := .llm_service.pid
+LLM_SERVICE_LOG   := .llm_service.log
+
+$(LLM_SERVICE_VENV)/.installed: llm_service/requirements.txt
+	@echo "Creating llm_service venv at $(LLM_SERVICE_VENV)/ ..."
+	@test -d $(LLM_SERVICE_VENV) || python3 -m venv $(LLM_SERVICE_VENV)
+	$(LLM_SERVICE_PIP) install --upgrade pip
+	$(LLM_SERVICE_PIP) install -r llm_service/requirements.txt
+	@touch $(LLM_SERVICE_VENV)/.installed
+
+ollama-service-up: $(LLM_SERVICE_VENV)/.installed
+	@if [ -f $(LLM_SERVICE_PID) ] && kill -0 $$(cat $(LLM_SERVICE_PID)) 2>/dev/null; then \
+	  echo "llm_service already running (pid $$(cat $(LLM_SERVICE_PID)))"; exit 0; \
+	fi
+	# Ollama install check + qwen3:8b auto-pull are done by the service
+	# itself on startup (see llm_service/bootstrap.py). First-time launch
+	# will block while the ~5 GB model downloads; tail the log to watch.
+	@nohup $(LLM_SERVICE_UVI) llm_service.main:app \
+	  --host 0.0.0.0 --port $(LLM_SERVICE_PORT) \
+	  >$(LLM_SERVICE_LOG) 2>&1 & echo $$! >$(LLM_SERVICE_PID)
+	@printf "Waiting for llm_service (model pull may take a few minutes on first run) "
+	@for i in $$(seq 1 600); do \
+	  curl -sf http://localhost:$(LLM_SERVICE_PORT)/healthz >/dev/null 2>&1 && { echo " ok"; break; }; \
+	  if ! kill -0 $$(cat $(LLM_SERVICE_PID)) 2>/dev/null; then \
+	    echo " process died — see $(LLM_SERVICE_LOG)"; exit 1; \
+	  fi; \
+	  printf "."; sleep 1; \
+	done
+	@echo "llm_service ready at http://localhost:$(LLM_SERVICE_PORT)"
+	@echo "  logs: $(LLM_SERVICE_LOG)    pid:  $$(cat $(LLM_SERVICE_PID))"
+
+ollama-service-down:
+	@if [ -f $(LLM_SERVICE_PID) ]; then \
+	  pid=$$(cat $(LLM_SERVICE_PID)); \
+	  kill $$pid 2>/dev/null || true; \
+	  rm -f $(LLM_SERVICE_PID); \
+	  echo "llm_service stopped (pid $$pid)"; \
+	else \
+	  echo "no pid file at $(LLM_SERVICE_PID) — nothing to stop"; \
+	fi
+
+ollama-service-logs:
+	@test -f $(LLM_SERVICE_LOG) || { echo "no log at $(LLM_SERVICE_LOG) — run 'make ollama-service-up' first"; exit 1; }
+	tail -f $(LLM_SERVICE_LOG)
+
+# Nuke the llm_service venv so the next ollama-service-up rebuilds it from
+# scratch. Useful if requirements.txt drifted or the venv got corrupted.
+ollama-service-clean:
+	rm -rf $(LLM_SERVICE_VENV) $(LLM_SERVICE_PID) $(LLM_SERVICE_LOG)

@@ -67,5 +67,10 @@ Thumbs.db
 # Compose may write logs / state here in some setups.
 docker-compose.override.yml
 
+# --- llm_service runtime artifacts ------------------------------------------
+.llm_service.pid
+.llm_service.log
+llm_service/.venv/
+
 # --- Tests ------------------------------------------------------------------
 tests/

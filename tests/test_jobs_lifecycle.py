@@ -110,24 +110,27 @@ class TestJobStatus:
                   "submitted_at"):
             assert k in s, f"missing {k}"
         assert s["job_id"] == body["job_id"]
-        assert s["status"] in {"queued", "running", "completed", "failed"}
+        assert s["status"] in {"queued", "running", "completed", "failed", "review"}
         assert 0 <= s["percent"] <= 100
         assert s["stage"] in {
             "queued", "extracting_questionnaire", "extracting_references",
-            "building_prompt", "calling_llm", "normalizing", "saving",
-            "completed", "failed",
+            "calling_llm_service", "saving",
+            "completed", "failed", "review",
         }
         assert isinstance(s["stage_text"], str) and s["stage_text"]
         # ISO 8601 timestamp.
         assert "T" in s["submitted_at"]
 
-    def test_download_url_only_present_when_completed(self, http, blank_pdf):
+    def test_download_url_only_present_when_result_available(self, http, blank_pdf):
         body = submit_job(http, blank_pdf)
         s = http.get(body["status_url"]).json()
-        if s["status"] != "completed":
-            assert s.get("download_url") is None
-        else:
+        # `download_url` is populated iff a result.json was written —
+        # i.e. terminal status is `completed` (all answers OK) or `review`
+        # (LLM finished, low-confidence items need human approval).
+        if s["status"] in {"completed", "review"}:
             assert s["download_url"] == f"/jobs/{body['job_id']}/data.json"
+        else:
+            assert s.get("download_url") is None
 
     def test_status_is_repeatable(self, http, blank_pdf):
         """Polling twice in quick succession returns consistent state.
@@ -156,12 +159,13 @@ class TestJobDownload:
         assert r.status_code == 404
 
     def test_not_completed_returns_409_with_state(self, http, blank_pdf):
-        """A job that isn't completed yet returns 409 with the current state."""
+        """A job whose result isn't ready yet returns 409 with the current state."""
         body = submit_job(http, blank_pdf)
-        # Race: if Ollama is fast we may see 200. Retry once if so.
+        # Race: if Ollama is fast the job may already be terminal with a
+        # result available (status=completed or review → 200). Skip then.
         r = http.get(body["download_url"])
         if r.status_code == 200:
-            pytest.skip("job already completed before we checked — Ollama too fast")
+            pytest.skip("job already produced a result before we checked — Ollama too fast")
         assert r.status_code == 409
         payload = r.json()
         assert payload["detail"]
@@ -180,14 +184,20 @@ class TestE2E:
     def test_submit_poll_complete_download(
         self, http, blank_pdf, reference_doc
     ):
-        """Submit → poll until terminal → download → validate schema."""
+        """Submit → poll until terminal → download → validate schema.
+
+        Accepts both `completed` and `review` as success: the LLM finished
+        and produced a result.json. `review` just means at least one item
+        was low-confidence and needs human approval — that does not change
+        whether the request succeeded end-to-end.
+        """
         body = submit_job(http, blank_pdf, references=[reference_doc])
         final = poll_until_terminal(http, body["job_id"])
         if final["status"] == "failed":
             pytest.fail(f"job failed: {final.get('error')!r}")
-        assert final["status"] == "completed"
+        assert final["status"] in {"completed", "review"}
         assert final["percent"] == 100
-        assert final["stage"] == "completed"
+        assert final["stage"] in {"completed", "review"}
         assert final["completed_at"] is not None
         assert final["error"] is None
         assert final["download_url"] == f"/jobs/{body['job_id']}/data.json"
@@ -214,8 +224,8 @@ class TestE2E:
     def test_title_override_applied(self, http, blank_pdf):
         body = submit_job(http, blank_pdf, title="OVERRIDE_TITLE_42")
         final = poll_until_terminal(http, body["job_id"])
-        if final["status"] != "completed":
-            pytest.skip(f"job did not complete: {final.get('error')}")
+        if final["status"] not in {"completed", "review"}:
+            pytest.skip(f"job did not produce a result: {final.get('error')}")
         data = http.get(body["download_url"]).json()
         assert data["questionnaire_title"] == "OVERRIDE_TITLE_42"
 
@@ -228,7 +238,7 @@ class TestE2E:
         while time.monotonic() < deadline:
             s = http.get(body["status_url"]).json()
             seen.append(s["percent"])
-            if s["status"] in {"completed", "failed"}:
+            if s["status"] in {"completed", "failed", "review"}:
                 break
             time.sleep(0.5)
         # Percent must be non-decreasing.

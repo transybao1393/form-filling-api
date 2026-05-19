@@ -58,6 +58,9 @@ def submit_job(http_client: httpx.Client,
     return body
 
 
+TERMINAL_STATUSES = {"completed", "failed", "review"}
+
+
 def poll_until_terminal(http_client: httpx.Client,
                         job_id: str,
                         queue_timeout_s: float = QUEUE_TIMEOUT_S,
@@ -67,6 +70,11 @@ def poll_until_terminal(http_client: httpx.Client,
 
       queue_timeout_s — max time spent in `queued` (waiting for a worker)
       run_timeout_s   — once `running`, max time for the LLM to finish
+
+    `review` is the Phase-3 terminal state for jobs whose extraction
+    succeeded but where at least one item has confidence == "NONE" — i.e.
+    the LLM finished and produced a usable result.json, the caller just
+    needs to approve it.
     """
     queue_deadline = time.monotonic() + queue_timeout_s
     run_deadline: float | None = None
@@ -76,7 +84,7 @@ def poll_until_terminal(http_client: httpx.Client,
         assert r.status_code == 200, f"unexpected status: {r.status_code}"
         last = r.json()
         status = last.get("status")
-        if status in {"completed", "failed"}:
+        if status in TERMINAL_STATUSES:
             return last
         # First time we see status leave queued, switch to the run-phase budget.
         if status == "running" and run_deadline is None:

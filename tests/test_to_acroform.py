@@ -369,8 +369,8 @@ class TestIntegration:
         r = http.get("/healthz")
         assert r.status_code == 200
         body = r.json()
-        assert body["model"]
-        assert body["ollama"] in {"ok", "down"}
+        assert isinstance(body["model"], str)
+        assert body["llm_service"] in {"ok", "down"}
 
     def test_scalar_doc_renders(self, http):
         r = http.get("/scalar")

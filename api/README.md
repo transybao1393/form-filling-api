@@ -2,9 +2,11 @@
 
 FastAPI service that turns an uploaded questionnaire (PDF / scanned PDF /
 image / DOCX) plus optional reference documents into a `data.json` file
-matching the schema consumed by `run_pipeline.py`. Generation is done by
-a local **Qwen3:8b** model on Ollama (thinking mode disabled), driven by
-an **arq** worker so the HTTP submission returns immediately.
+matching the schema consumed by `run_pipeline.py`. Generation runs on the
+host-native [`llm_service`](../llm_service/README.md), which wraps a local
+**Qwen3:8b** model on Ollama (thinking mode disabled). HTTP submissions
+return immediately; an **arq** worker pulls the job and POSTs to the LLM
+service over `host.docker.internal:11500`.
 
 ```
                    ┌──────────────┐ enqueue ┌─────────┐  pull  ┌────────────┐
@@ -20,11 +22,13 @@ client ──GET /jobs/{id}/data.json (reads result.json)
 
 ## Quickstart (Docker — the recommended path)
 
-Two `make` targets. Everything else (image build, model pull, tests) is
-inside Docker.
+Three `make` targets. The first starts the host-native LLM service (which
+needs Ollama already running on the host); the other two manage the
+dockerized API stack.
 
 ```bash
-make docker-setup       # one-time: verify Docker + Ollama, pull qwen3:8b, build image
+make ollama-service-up  # host-native: verifies Ollama, pulls qwen3:8b, starts llm_service on :11500
+make docker-setup       # one-time: verify Docker + build the api image
 make docker-up          # start redis + api + worker, then run the test suite
 ```
 
@@ -42,12 +46,29 @@ make docker-logs        # tail api + worker logs
 make docker-down        # stop the stack (preserves the jobs volume)
 ```
 
-### Why Ollama stays on the host
+### How the LLM call works (three-tier)
 
-Docker on macOS cannot use the Apple-Metal GPU; running Qwen3:8b on CPU
-inside a container is roughly 10× slower. So the containers reach the host
-Ollama via `host.docker.internal:11434`. `make docker-setup` checks this
-for you and prints a fix-it message if Ollama is bound only to `127.0.0.1`.
+The API container does **not** talk to Ollama directly. All LLM-orchestration
+concerns (prompt building, `/api/chat`, JSON parsing + one-shot repair,
+output normalization) live in a separate **host-native** FastAPI process —
+the **llm_service** — started by `make ollama-service-up`. The worker POSTs
+extracted questionnaire/reference text to `http://host.docker.internal:11500`
+and gets back a validated `data.json`.
+
+```
+Ollama (:11434, native, Metal GPU)
+        ▲ /api/chat
+llm_service (:11500, native, own venv)
+        ▲ POST /generate
+        └── host.docker.internal:11500 ── api + worker (docker-compose)
+```
+
+The split exists because Docker on macOS cannot reach the Apple Metal GPU
+(CPU-only Qwen3:8b is ~10× slower). Keeping the LLM service on the host
+gives us GPU access **and** a clean service boundary: the main app can be
+rebuilt, restarted, and tested without touching the LLM weights.
+
+See `llm_service/README.md` for the service's endpoints + env vars.
 
 ## Endpoints
 
@@ -78,8 +99,8 @@ Response:
   "job_id": "8e1d…",
   "status": "running",
   "percent": 40,
-  "stage": "calling_llm",
-  "stage_text": "Generating answers (Qwen3:8b)",
+  "stage": "calling_llm_service",
+  "stage_text": "Generating answers",
   "submitted_at": "2026-04-27T10:12:00+00:00",
   "started_at": "2026-04-27T10:12:01+00:00",
   "completed_at": null,
@@ -91,16 +112,17 @@ Response:
 `status` is one of: `queued` → `running` → `completed` | `failed`.
 
 Stage progression:
-| % | stage | stage_text |
-|---|---|---|
-| 0  | `queued`                  | Queued, waiting for worker |
-| 10 | `extracting_questionnaire`| Reading the questionnaire |
-| 25 | `extracting_references`   | Reading reference documents |
-| 35 | `building_prompt`         | Building prompt for Qwen3:8b |
-| 40 | `calling_llm`             | Generating answers (Qwen3:8b) |
-| 90 | `normalizing`             | Validating and normalizing output |
-| 99 | `saving`                  | Writing data.json |
-| 100| `completed`               | Done |
+| %   | stage                       | stage_text |
+|-----|-----------------------------|------------|
+| 0   | `queued`                    | Queued, waiting for worker |
+| 10  | `extracting_questionnaire`  | Reading the questionnaire |
+| 25  | `extracting_references`     | Reading reference documents |
+| 40  | `calling_llm_service`       | Generating answers |
+| 99  | `saving`                    | Writing data.json |
+| 100 | `completed` / `review`      | Done / awaiting human review |
+
+All prompt building, parsing, normalization, and renumbering happens
+inside the host-native `llm_service`; the worker just waits for the response.
 
 ### `GET /jobs/{job_id}/data.json` — download result
 
@@ -162,8 +184,18 @@ curl -F "form_file=@some-overlay-filled.pdf" \
 ### `GET /healthz`
 
 ```json
-{ "ollama": "ok", "model": "qwen3:8b" }
+{
+  "status": "ok",
+  "llm_service": "ok",
+  "redis": "ok",
+  "model": "qwen3:8b"
+}
 ```
+
+`llm_service` is `"ok"` iff the host-native LLM service responds AND its
+upstream Ollama is reachable. `model` mirrors what that service reports
+(empty string if the service is down). Status code is always 200 — read
+the body to decide what to page on.
 
 ## End-to-end example
 
@@ -192,14 +224,14 @@ python3 run_pipeline.py input/test3/blank_questionnaire.pdf data.json \
 
 | Variable                     | Default                            | Purpose |
 |------------------------------|------------------------------------|---------|
-| `OLLAMA_URL`                 | `http://localhost:11434`           | Ollama daemon URL (in Docker: `host.docker.internal:…`) |
-| `OLLAMA_MODEL`               | `qwen3:8b`                         | Model tag |
-| `OLLAMA_TIMEOUT`             | `300`                              | Per-call HTTP timeout (s) |
-| `OLLAMA_NUM_CTX`             | `16384`                            | Context window — bumping past 24 k pays a 4-min KV alloc tax on Apple Silicon |
-| `OLLAMA_TEMPERATURE`         | `0.1`                              | Sampling temperature |
-| `MAX_CHARS_PER_DOC`          | `8000`                             | Per-reference truncation cap |
-| `MAX_CHARS_PER_QUESTIONNAIRE`| `25000`                            | Questionnaire truncation cap |
+| `LLM_SERVICE_URL`            | `http://localhost:11500` (Docker: `http://host.docker.internal:11500`) | Where the host-native llm_service is reachable |
+| `LLM_SERVICE_TIMEOUT`        | `360`                              | Per-call HTTP timeout when POSTing to llm_service `/generate` |
 | `REDIS_HOST`                 | `localhost` (Docker: `redis`)      | Broker host |
 | `REDIS_PORT`                 | `6379`                             | Broker port |
 | `JOBS_DIR`                   | `~/.form_pipeline/jobs` (Docker: `/var/lib/form-pipeline/jobs`) | Where uploads + state + result live |
 | `JOB_TTL_HOURS`              | `168` (7 days)                     | When the worker GC removes finished job dirs |
+
+> The Ollama-specific knobs (`OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT`,
+> `OLLAMA_NUM_CTX`, `OLLAMA_TEMPERATURE`, `MAX_CHARS_PER_DOC`,
+> `MAX_CHARS_PER_QUESTIONNAIRE`) now live in `llm_service/README.md` — they
+> only affect the host-native LLM service, not this API.

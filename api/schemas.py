@@ -28,9 +28,13 @@ class HealthResponse(BaseModel):
     """Top-level `status` is "ok" iff every dependency is reachable; otherwise
     "degraded" — individual fields say which one is down. We return HTTP 200
     in both cases so monitoring systems can read the body and decide what to
-    page on (vs. blocking the load balancer with a 503)."""
+    page on (vs. blocking the load balancer with a 503).
+
+    `llm_service` is "ok" iff the host-native LLM service responds AND its
+    upstream Ollama is reachable. `model` mirrors the model name that service
+    reports."""
     status: Literal["ok", "degraded"]
-    ollama: Literal["ok", "down"]
+    llm_service: Literal["ok", "down"]
     redis: Literal["ok", "down"]
     model: str
 
@@ -46,9 +50,7 @@ JobStage = Literal[
     "queued",
     "extracting_questionnaire",
     "extracting_references",
-    "building_prompt",
-    "calling_llm",
-    "normalizing",
+    "calling_llm_service",
     "saving",
     "review",
     "completed",
