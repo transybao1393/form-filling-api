@@ -42,21 +42,108 @@ class TestDocs:
 
     def test_openapi_file_uploads_are_binary(self, http):
         """The 3.1 → 3.0.2 rewrite must convert contentMediaType to format=binary
-        so Swagger UI shows file pickers (verified in main.py:107-131)."""
+        so Swagger UI shows file pickers (verified in main.py:107-131).
+
+        Covers both required fields (form_file) AND optional fields
+        (data_file, answers_file). Regression guard for TC-049: optional
+        UploadFile params declared as `UploadFile | None = File(...)`
+        produced `anyOf: [binary, null]`, which Swagger renders as a text
+        input. Fix: drop `| None` so the schema is a plain binary string.
+        """
         spec = http.get("/openapi.json").json()
-        # Spot-check: /to-acroform's form_file should advertise format: binary.
-        post = spec["paths"]["/to-acroform"]["post"]
-        body = post["requestBody"]["content"]["multipart/form-data"]["schema"]
-        props = body.get("properties") or body.get("$ref")
-        # If schema is referenced, dereference.
-        if "$ref" in body:
-            ref = body["$ref"].split("/")[-1]
-            props = spec["components"]["schemas"][ref]["properties"]
-        assert "form_file" in props
-        ff = props["form_file"]
-        # Either format: binary (rewritten) or contentMediaType has been removed.
-        assert ff.get("format") == "binary" or "contentMediaType" not in ff, \
-            f"form_file is not advertised as binary: {ff}"
+
+        def _props(path: str) -> dict:
+            body = spec["paths"][path]["post"]["requestBody"]["content"]["multipart/form-data"]["schema"]
+            if "$ref" in body:
+                ref = body["$ref"].split("/")[-1]
+                return spec["components"]["schemas"][ref]["properties"]
+            return body["properties"]
+
+        def _assert_binary(field: dict, name: str, path: str) -> None:
+            # A clean binary upload is `{type: string, format: binary}`
+            # (after the 3.0.2 rewrite) OR `{type: string, contentMediaType:
+            # application/octet-stream}` (pre-rewrite). It must NOT be an
+            # `anyOf` wrapper — Swagger UI renders that as a text input.
+            assert "anyOf" not in field, (
+                f"{path}:{name} is `anyOf` (renders as text input in Swagger): {field}"
+            )
+            assert field.get("type") == "string", \
+                f"{path}:{name} is not a string upload: {field}"
+            assert field.get("format") == "binary" or \
+                field.get("contentMediaType") == "application/octet-stream", \
+                f"{path}:{name} is not declared binary: {field}"
+
+        # Every endpoint that takes file uploads — required and optional.
+        cases = [
+            ("/to-acroform", ["form_file", "data_file", "answers_file"]),
+            ("/fill-form",   ["form_file", "data_file", "answers_file"]),
+            ("/generate-data-json", ["questionnaire_file"]),
+        ]
+        for path, fields in cases:
+            props = _props(path)
+            for name in fields:
+                assert name in props, f"{path}: missing {name} in schema"
+                _assert_binary(props[name], name, path)
+
+    def test_job_id_path_param_is_strictly_typed(self, http):
+        """job_id path params must declare a `^[0-9a-f]{32}$` pattern and an
+        example, so Swagger UI shows what a job_id looks like (regression
+        guard for the save-as-template confusion — users were typing `4`
+        because the schema gave no hint).
+        """
+        spec = http.get("/openapi.json").json()
+
+        # Every operation under a `/jobs/{job_id}/...` route must declare
+        # the pattern + example on its `job_id` path param.
+        expected_pattern = r"^[0-9a-f]{32}$"
+        checked = 0
+        for path, ops in spec["paths"].items():
+            if "/jobs/{job_id}" not in path:
+                continue
+            for method, op in ops.items():
+                if method not in {"get", "post", "delete", "patch", "put"}:
+                    continue
+                params = op.get("parameters", [])
+                job_id = next(
+                    (p for p in params if p.get("name") == "job_id" and p.get("in") == "path"),
+                    None,
+                )
+                assert job_id is not None, \
+                    f"{method.upper()} {path}: no job_id path param in OpenAPI"
+                schema = job_id["schema"]
+                assert schema.get("pattern") == expected_pattern, \
+                    f"{method.upper()} {path}: job_id pattern is {schema.get('pattern')!r}, expected {expected_pattern!r}"
+                # Pydantic emits `examples: [...]` in 3.1; the rewriter in
+                # main.py keeps it under either key as long as one is set.
+                ex = job_id.get("example") or schema.get("example") or schema.get("examples")
+                assert ex, f"{method.upper()} {path}: job_id has no example"
+                checked += 1
+        assert checked >= 5, \
+            f"expected to find at least 5 /jobs/{{job_id}} routes; only saw {checked}"
+
+    def test_invalid_job_id_returns_422_with_pattern_info(self, http):
+        """An integer-shaped job_id (the original save-as-template bug:
+        user typed `4` from the templates list) must be rejected by FastAPI's
+        path-param validator BEFORE the endpoint runs — so the error tells
+        them the expected format instead of returning a misleading 404."""
+        r = http.get("/jobs/4")
+        assert r.status_code == 422, \
+            f"expected 422 from pattern validator, got {r.status_code}: {r.text[:200]}"
+        body = r.json()
+        # Pydantic 2's error body: {"detail": [{"loc": [...], "msg": "...", "ctx": {"pattern": "..."}, ...}]}
+        assert "detail" in body
+        flat = str(body)
+        assert "pattern" in flat.lower() or "0-9a-f" in flat, \
+            f"422 body should mention the pattern: {flat[:300]}"
+
+    def test_valid_shaped_but_unknown_job_id_returns_404(self, http):
+        """A correctly-formatted job_id that doesn't exist still returns 404
+        — the pattern is a structural check, not an existence check."""
+        nonexistent = "0" * 32
+        r = http.get(f"/jobs/{nonexistent}")
+        assert r.status_code == 404, \
+            f"expected 404 for unknown but well-formed job_id, got {r.status_code}: {r.text[:200]}"
+        assert nonexistent in r.json()["detail"]
 
     def test_swagger_docs_renders(self, http):
         r = http.get("/docs")

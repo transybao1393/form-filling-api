@@ -96,9 +96,18 @@ class TestSubmission:
 class TestJobStatus:
 
     def test_unknown_job_id_returns_404(self, http):
-        r = http.get("/jobs/does-not-exist-deadbeef")
+        # Well-formed but nonexistent job_id → 404.
+        r = http.get(f"/jobs/{'a' * 32}")
         assert r.status_code == 404
         assert "unknown job_id" in r.json()["detail"].lower()
+
+    def test_malformed_job_id_returns_422(self, http):
+        # Bad pattern (e.g. an integer template id misused as a job_id)
+        # → 422, NOT 404. Regression guard for the save-as-template bug
+        # where users typed `4` from the templates list.
+        r = http.get("/jobs/4")
+        assert r.status_code == 422
+        assert "pattern" in r.text.lower()
 
     def test_status_shape_after_submission(self, http, blank_pdf):
         body = submit_job(http, blank_pdf)
@@ -155,7 +164,7 @@ class TestJobStatus:
 class TestJobDownload:
 
     def test_unknown_job_id_returns_404(self, http):
-        r = http.get("/jobs/nonexistent-deadbeef/data.json")
+        r = http.get(f"/jobs/{'a' * 32}/data.json")
         assert r.status_code == 404
 
     def test_not_completed_returns_409_with_state(self, http, blank_pdf):

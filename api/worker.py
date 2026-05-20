@@ -12,6 +12,7 @@ to GC job directories older than JOB_TTL_HOURS.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from arq import cron
@@ -72,3 +73,14 @@ class WorkerSettings:
     # Per-job hard timeout. Typical LLM call is < 90s, but big inputs can
     # legitimately need a few minutes. Match LLM_SERVICE_TIMEOUT + buffer.
     job_timeout = config.LLM_SERVICE_TIMEOUT + 60
+    # Serialize generation through the single host Ollama. arq's default
+    # max_jobs=10 fires 10 concurrent /generate calls; Ollama processes
+    # them sequentially, so the 4th–10th request piles up at the Ollama
+    # daemon and the LLM_SERVICE_TIMEOUT (default 360 s) expires while it
+    # waits in line — surfaces to the worker as a 502 ReadTimeout, killing
+    # the job. With max_jobs=1, queued jobs sit in Redis instead, and each
+    # one gets the full Ollama throughput when its turn comes. Webhook
+    # delivery is decoupled (separate arq function), so this doesn't slow
+    # downstream callbacks. Override via env if/when llm_service learns to
+    # multiplex Ollama backends.
+    max_jobs = int(os.getenv("WORKER_MAX_JOBS", "1"))

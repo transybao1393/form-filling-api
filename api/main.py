@@ -33,6 +33,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from . import auth_utils, config, db as app_db, job_store, llm_service_client, models, usage
+from .path_params import JobIdPath
 from .rate_limit import limiter
 from .file_validation import (
     JSON_ONLY,
@@ -572,7 +573,7 @@ _RESULT_AVAILABLE_STATUSES = {"review", "completed"}
     },
 )
 async def get_job_status(
-    job_id: str,
+    job_id: JobIdPath,
     current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> JobStatusResponse:
     state = job_store.get_state(job_id)
@@ -605,7 +606,7 @@ async def get_job_status(
     },
 )
 async def delete_job(
-    job_id: str,
+    job_id: JobIdPath,
     current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ) -> Response:
     _check_job_access(job_id, current_user)
@@ -633,7 +634,7 @@ async def delete_job(
     },
 )
 async def download_result(
-    job_id: str,
+    job_id: JobIdPath,
     current_user: models.User | None = Depends(auth_utils.auth_for_jobs),
 ):
     state = job_store.get_state(job_id)
@@ -682,7 +683,7 @@ async def download_result(
 @limiter.limit(config.RATE_LIMIT_FILL_FORM)
 async def preview(
     request: Request,
-    job_id: str,
+    job_id: JobIdPath,
     dpi: int = Query(
         default=100, ge=50, le=200,
         description="Render DPI (50–200). Cached PNGs are keyed by this value.",
@@ -795,12 +796,14 @@ _FILL_FORMAT_OPTIONS = {"flat", "flatlist", "nested"}
 @limiter.limit(config.RATE_LIMIT_FILL_FORM)
 async def fill_job(
     request: Request,
-    job_id: str,
-    form_file: UploadFile | None = File(
+    job_id: JobIdPath,
+    # See /to-acroform: `UploadFile = File(default=None)` (no `| None`) so
+    # the OpenAPI schema is `string($binary)`, not `anyOf: [binary, null]`.
+    form_file: UploadFile = File(
         default=None,
         description="Optional PDF/DOCX override; defaults to reusing the original questionnaire",
     ),
-    answers_file: UploadFile | None = File(
+    answers_file: UploadFile = File(
         default=None,
         description="Optional flat {question_id: answer} for nested data",
     ),
@@ -941,7 +944,9 @@ async def fill_form(
     data_file: UploadFile = File(
         ..., description="data.json — flat, flat-list, or nested"
     ),
-    answers_file: UploadFile | None = File(
+    # See /to-acroform: `UploadFile = File(default=None)` (no `| None`) so
+    # the OpenAPI schema is `string($binary)`, not `anyOf: [binary, null]`.
+    answers_file: UploadFile = File(
         default=None,
         description="Optional flat {question_id: answer} for nested data",
     ),
@@ -1120,11 +1125,15 @@ async def to_acroform(
     form_file: UploadFile = File(
         ..., description="PDF to convert to AcroForm"
     ),
-    data_file: UploadFile | None = File(
+    # `UploadFile = File(default=None)` (without `| None`) emits a clean
+    # `string($binary)` schema. Adding `| None` produces `anyOf: [binary,
+    # null]`, which Swagger UI renders as a text input instead of a file
+    # picker — the fix for TC-049.
+    data_file: UploadFile = File(
         default=None,
         description="Optional data.json (flat / flatlist / nested)",
     ),
-    answers_file: UploadFile | None = File(
+    answers_file: UploadFile = File(
         default=None,
         description="Optional flat {question_id: answer} for nested data",
     ),

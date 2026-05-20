@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import auth_utils, models
 from ..db import get_db
+from ..path_params import JobIdQuery
 
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
@@ -41,7 +42,7 @@ class DeliveryListResponse(BaseModel):
     summary="Webhook delivery audit log for the current team",
 )
 async def list_deliveries(
-    job_id: str | None = Query(default=None, min_length=1, max_length=64),
+    job_id: JobIdQuery = None,
     event: str | None = Query(default=None, max_length=64),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),

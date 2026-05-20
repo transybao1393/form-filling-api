@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import auth_utils, job_store, models
 from ..db import get_db
+from ..path_params import JobIdPath
 
 
 router = APIRouter(tags=["templates"])
@@ -119,14 +120,25 @@ async def create_template(
     summary="Save a completed job's field schema as a reusable template",
 )
 async def save_job_as_template(
+    job_id: JobIdPath,
     body: SaveAsTemplateRequest = SaveAsTemplateRequest(),
-    job_id: str = Path(..., min_length=1, max_length=64),
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TemplateResponse:
     owns = job_store.team_owns(job_id, user.team_id)
     if owns is None or not owns:
-        raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
+        # The pattern validator already filters out clearly-wrong values
+        # (e.g. integer template IDs). A 404 here means the value looks
+        # like a job_id but doesn't exist — usually a typo or a job from
+        # another team.
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"unknown job_id={job_id!r}. job_ids come from "
+                "POST /generate-data-json; template integer IDs from "
+                "GET /templates are NOT job_ids."
+            ),
+        )
     state = job_store.get_state(job_id)
     if state is None or state.get("status") not in ("review", "completed"):
         raise HTTPException(

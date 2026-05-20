@@ -72,5 +72,9 @@ docker-compose.override.yml
 .llm_service.log
 llm_service/.venv/
 
+# --- Local-only bug-report screenshots ---------------------------------------
+# Where the user drops screenshots when filing bug reports; not part of the repo.
+error_images/
+
 # --- Tests ------------------------------------------------------------------
 tests/

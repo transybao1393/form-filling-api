@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import auth_utils, job_store, models
 from ..db import get_db
+from ..path_params import JobIdPath
 
 
 log = logging.getLogger("api.review")
@@ -128,7 +129,7 @@ async def _maybe_complete(request: Request, job_id: str, result: dict) -> str:
 async def approve_field(
     body: FieldApproveRequest,
     request: Request,
-    job_id: str = Path(..., min_length=1, max_length=64),
+    job_id: JobIdPath,
     field_number: str = Path(..., min_length=1, max_length=16),
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -185,7 +186,7 @@ async def approve_field(
 async def approve_job(
     body: JobApproveRequest,
     request: Request,
-    job_id: str = Path(..., min_length=1, max_length=64),
+    job_id: JobIdPath,
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> JobApprovalResponse:
