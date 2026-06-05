@@ -75,7 +75,62 @@ def _extract_docx(p: Path) -> str:
             cells = [c.text.strip() for c in row.cells]
             if any(cells):
                 parts.append("\t".join(cells))
+    
+    # Fallback: extract text from VML textboxes if no text found via python-docx
+    if not parts:
+        vml_texts = _extract_vml_textboxes(p)
+        parts.extend(vml_texts)
+    
     return "\n".join(parts).strip()
+
+
+def _extract_vml_textboxes(p: Path) -> list[str]:
+    """Extract text from VML textboxes in DOCX by parsing raw XML.
+    
+    Some DOCX files (especially forms) use VML textboxes (<v:textbox>) to
+    contain text instead of standard paragraphs. python-docx does not read
+    these, so we parse the raw XML directly.
+    """
+    import zipfile
+    from xml.etree import ElementTree as ET
+    
+    parts: list[str] = []
+    
+    # Namespace for WordprocessingML text elements
+    W_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    V_NS = '{urn:schemas-microsoft-com:vml}'
+    
+    try:
+        with zipfile.ZipFile(str(p), 'r') as zf:
+            # Read document.xml which contains the main content
+            if 'word/document.xml' not in zf.namelist():
+                return parts
+            
+            xml_content = zf.read('word/document.xml')
+            root = ET.fromstring(xml_content)
+            
+            # Find all VML textbox elements and extract text
+            for textbox in root.iter(f'{V_NS}textbox'):
+                textbox_parts: list[str] = []
+                # Text is stored in <w:t> elements inside the textbox
+                for t_elem in textbox.iter(f'{W_NS}t'):
+                    if t_elem.text:
+                        textbox_parts.append(t_elem.text)
+                if textbox_parts:
+                    parts.append(''.join(textbox_parts))
+            
+            # Also check for text in <w:txbxContent> (textbox content) elements
+            # which may not be inside VML namespace
+            for txbx_content in root.iter(f'{W_NS}txbxContent'):
+                for t_elem in txbx_content.iter(f'{W_NS}t'):
+                    if t_elem.text and t_elem.text not in parts:
+                        parts.append(t_elem.text)
+                        
+    except (zipfile.BadZipFile, ET.ParseError):
+        # If we can't parse the file, return empty list
+        pass
+    
+    return parts
 
 
 def _extract_xlsx(p: Path) -> str:
