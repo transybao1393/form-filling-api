@@ -2,8 +2,10 @@
 FROM python:3.12-slim
 
 # OCR + scanned-PDF support — pdfplumber doesn't pull these.
+# tesseract-ocr-vie: Vietnamese language pack for proper diacritics recognition
 RUN apt-get update && apt-get install -y --no-install-recommends \
         tesseract-ocr \
+        tesseract-ocr-vie \
         poppler-utils \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*

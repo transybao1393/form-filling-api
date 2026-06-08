@@ -7,10 +7,15 @@ don't recognise raises `UnsupportedFileType`.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # Threshold below which a PDF is considered "scanned" and we fall back to OCR.
 _PDF_TEXT_FLOOR = 50
+
+# Tesseract language(s) for OCR. Default 'vie+eng' for Vietnamese + English.
+# Override via TESSERACT_LANG env var (e.g., 'eng' for English-only).
+_TESSERACT_LANG = os.getenv("TESSERACT_LANG", "vie+eng")
 
 
 class UnsupportedFileType(Exception):
@@ -62,7 +67,9 @@ def _ocr_pdf(p: Path) -> str:
     import pytesseract
 
     images = convert_from_path(str(p))
-    return "\n".join(pytesseract.image_to_string(img) for img in images).strip()
+    return "\n".join(
+        pytesseract.image_to_string(img, lang=_TESSERACT_LANG) for img in images
+    ).strip()
 
 
 def _extract_docx(p: Path) -> str:
@@ -117,4 +124,4 @@ def _extract_image(p: Path) -> str:
     from PIL import Image
     import pytesseract
 
-    return pytesseract.image_to_string(Image.open(str(p))).strip()
+    return pytesseract.image_to_string(Image.open(str(p)), lang=_TESSERACT_LANG).strip()
