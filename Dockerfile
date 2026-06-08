@@ -27,7 +27,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY run_pipeline.py field_detector.py field_normalizer.py \
      flatlist_adapter.py questionnaire_adapter.py form_filler.py \
      form_utils.py docx_detector.py docx_filler.py acroform_writer.py \
+     font_utils.py \
      /app/
+
+COPY fonts/ /app/fonts/
 
 COPY api/ /app/api/
 
