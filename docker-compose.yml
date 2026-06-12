@@ -74,6 +74,7 @@ services:
       # the same secret + timeout as the API container.
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       WEBHOOK_TIMEOUT: ${WEBHOOK_TIMEOUT:-10}
+      WORKER_MAX_JOBS: 3
     volumes:
       - jobs:/var/lib/form-pipeline/jobs
     depends_on:
