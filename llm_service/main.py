@@ -18,7 +18,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
-from . import bootstrap, config, normalize, ollama_client, prompts
+from . import bootstrap, config, normalize, ollama_client, prompts, util
 from .schemas import (
     GenerateRequest,
     GenerateResponse,
@@ -69,6 +69,7 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
 
     try:
         raw = await ollama_client.chat(messages)
+        raw = util.clean_json_output(raw)
     except ollama_client.OllamaError as e:
         log.warning("ollama call failed: %s", e)
         raise HTTPException(status_code=502, detail=f"ollama: {e}") from e
