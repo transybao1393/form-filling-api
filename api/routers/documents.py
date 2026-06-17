@@ -13,19 +13,22 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+from typing import Literal
+
 from fastapi import (
     APIRouter,
     Depends,
     File,
     Form,
     HTTPException,
+    Query,
     Response,
     UploadFile,
     status,
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import auth_utils, config, models
@@ -33,6 +36,9 @@ from ..db import get_db
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+DocumentKind = Literal["template", "reference"]
+_VALID_KINDS = frozenset({"template", "reference"})
 
 
 _DOCS_SUBDIR = "_documents"
@@ -48,8 +54,17 @@ class DocumentResponse(BaseModel):
     size_bytes: int
     pages: int | None
     tag: str | None
+    kind: DocumentKind
     created_at: datetime
     uploaded_by_user_id: int | None
+
+
+class DocumentListResponse(BaseModel):
+    total: int
+    total_size_bytes: int
+    limit: int
+    offset: int
+    items: list[DocumentResponse]
 
 
 def _safe_filename(raw: str) -> str:
@@ -73,6 +88,7 @@ def _to_response(d: models.Document) -> DocumentResponse:
         size_bytes=d.size_bytes,
         pages=d.pages,
         tag=d.tag,
+        kind=d.kind if d.kind in _VALID_KINDS else "reference",
         created_at=d.created_at,
         uploaded_by_user_id=d.uploaded_by_user_id,
     )
@@ -89,19 +105,57 @@ def _count_pdf_pages(path: Path) -> int | None:
 
 @router.get(
     "",
-    response_model=list[DocumentResponse],
+    response_model=DocumentListResponse,
     summary="List documents for the current team",
 )
 async def list_documents(
+    kind: DocumentKind | None = None,
+    q: str | None = Query(default=None, max_length=120, description="Search name, filename, or tag"),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[DocumentResponse]:
+) -> DocumentListResponse:
+    filters = [models.Document.team_id == user.team_id]
+    if kind is not None:
+        filters.append(models.Document.kind == kind)
+    if q and q.strip():
+        needle = f"%{q.strip().lower()}%"
+        filters.append(
+            or_(
+                func.lower(models.Document.display_name).like(needle),
+                func.lower(models.Document.filename).like(needle),
+                func.lower(models.Document.tag).like(needle),
+            )
+        )
+
+    total = (
+        await db.execute(
+            select(func.count()).select_from(models.Document).where(*filters)
+        )
+    ).scalar_one()
+
+    total_size_bytes = (
+        await db.execute(
+            select(func.coalesce(func.sum(models.Document.size_bytes), 0)).where(*filters)
+        )
+    ).scalar_one()
+
     result = await db.execute(
         select(models.Document)
-        .where(models.Document.team_id == user.team_id)
+        .where(*filters)
         .order_by(models.Document.created_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
-    return [_to_response(d) for d in result.scalars()]
+    items = [_to_response(d) for d in result.scalars()]
+    return DocumentListResponse(
+        total=total,
+        total_size_bytes=int(total_size_bytes or 0),
+        limit=limit,
+        offset=offset,
+        items=items,
+    )
 
 
 @router.post(
@@ -111,14 +165,21 @@ async def list_documents(
     summary="Upload a single document",
 )
 async def upload_document(
-    file: UploadFile = File(..., description="Document to store"),
     display_name: str | None = Form(default=None, max_length=255),
     tag: str | None = Form(default=None, max_length=64),
+    kind: str = Form(default="reference", max_length=16),
+    file: UploadFile = File(..., description="Document to store"),
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="missing filename")
+    doc_kind = kind.strip().lower()
+    if doc_kind not in _VALID_KINDS:
+        raise HTTPException(
+            status_code=400,
+            detail="kind must be 'template' or 'reference'",
+        )
     safe = _safe_filename(file.filename)
     now = datetime.now(timezone.utc)
 
@@ -132,6 +193,7 @@ async def upload_document(
         content_type=file.content_type or "application/octet-stream",
         size_bytes=0,
         tag=tag,
+        kind=doc_kind,
         storage_path="",
         created_at=now,
     )
