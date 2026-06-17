@@ -12,9 +12,11 @@ import os
 
 # --- Ollama ---------------------------------------------------------------- #
 OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
-OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3.5:4b")
-OLLAMA_NUM_PARALLEL: int = int(os.getenv("OLLAMA_NUM_PARALLEL", "3"))
+OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:8b")
+OLLAMA_NUM_PARALLEL: int = int(os.getenv("OLLAMA_NUM_PARALLEL", "2"))
 OLLAMA_KEEP_ALIVE: str = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+OLLAMA_NUM_PREDICT: int = int(os.getenv("OLLAMA_NUM_PREDICT", "256"))
+OLLAMA_NUM_THREAD: int = int(os.getenv("OLLAMA_NUM_THREAD", "4"))
 
 # Per-request HTTP timeout when talking to Ollama (seconds).
 OLLAMA_TIMEOUT: float = float(os.getenv("OLLAMA_TIMEOUT", "300"))
