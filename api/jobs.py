@@ -20,9 +20,10 @@ from typing import Any
 import httpx
 from arq.worker import Retry
 
-from . import config, db as app_db, job_store, llm_service_client, models, usage
+from . import config, db as app_db, job_store, llm_service_client, models, template_task_store, usage
 from .extractors import UnsupportedFileType, extract_text
 from .schemas import DataJson
+from .template_helpers import items_to_field_schema
 
 
 log = logging.getLogger("api.jobs")
@@ -288,3 +289,95 @@ async def deliver_webhook(ctx: dict[str, Any], job_id: str) -> None:
         response_excerpt=response_excerpt, error=f"5xx; will retry in {backoff_s:.0f}s",
     )
     raise Retry(defer=backoff_s)
+
+
+async def run_template_generation(ctx: dict[str, Any], task_id: str) -> None:
+    """Extract field schema from a form and persist a Template row."""
+    log.info("run_template_generation: starting task_id=%s", task_id)
+    update = lambda **kw: template_task_store.update_state(task_id, **kw)
+
+    try:
+        meta = template_task_store.get_meta(task_id)
+        if meta is None:
+            log.info("run_template_generation: task_id=%s deleted, skipping", task_id)
+            return
+
+        update(
+            status="running",
+            started_at=_now_iso(),
+            percent=10,
+            stage="extracting_form",
+            stage_text="Reading the form document",
+        )
+
+        form_path: Path | None = None
+        if meta.get("form_filename"):
+            form_path = template_task_store.uploads_dir(task_id) / meta["form_filename"]
+        elif meta.get("document_storage_path"):
+            form_path = Path(meta["document_storage_path"])
+
+        if form_path is None or not form_path.exists():
+            raise RuntimeError("form document not found for template generation")
+
+        try:
+            q_text = extract_text(form_path)
+        except UnsupportedFileType as e:
+            raise RuntimeError(f"unsupported form type: {e}") from e
+        if not q_text:
+            raise RuntimeError(f"could not extract any text from {form_path.name!r}")
+
+        update(
+            percent=40,
+            stage="calling_llm_service",
+            stage_text="Extracting field list",
+        )
+        data_dict = await llm_service_client.extract_fields(
+            q_text, meta.get("name")
+        )
+        schema = items_to_field_schema(data_dict.get("items") or [])
+        if not schema:
+            raise RuntimeError("LLM returned no fields for this form")
+
+        update(percent=90, stage="saving", stage_text="Saving template")
+
+        sm = app_db.get_sessionmaker()
+        async with sm() as session:
+            tpl = models.Template(
+                team_id=meta["team_id"],
+                created_by_user_id=meta.get("user_id"),
+                name=meta["name"],
+                field_schema=schema,
+                source_job_id=None,
+                source_document_id=meta.get("document_id"),
+                uses=0,
+                created_at=datetime.now(timezone.utc),
+            )
+            session.add(tpl)
+            await session.commit()
+            await session.refresh(tpl)
+            template_id = tpl.id
+
+        update(
+            percent=100,
+            status="completed",
+            stage="completed",
+            stage_text="Template saved",
+            completed_at=_now_iso(),
+            template_id=template_id,
+        )
+        log.info(
+            "run_template_generation: completed task_id=%s template_id=%d fields=%d",
+            task_id, template_id, len(schema),
+        )
+
+    except Exception as e:
+        log.exception("run_template_generation: task_id=%s failed", task_id)
+        template_task_store.update_state(
+            task_id,
+            status="failed",
+            stage="failed",
+            stage_text=f"Failed: {type(e).__name__}",
+            completed_at=_now_iso(),
+            error=f"{type(e).__name__}: {e}",
+        )
+        raise

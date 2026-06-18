@@ -39,6 +39,15 @@ class GenerateResponse(BaseModel):
     data: DataJson
 
 
+class ExtractFieldsRequest(BaseModel):
+    questionnaire_text: str = Field(..., min_length=1)
+    questionnaire_title: str | None = None
+
+
+class ExtractFieldsResponse(BaseModel):
+    data: DataJson
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     ollama: Literal["ok", "down"]

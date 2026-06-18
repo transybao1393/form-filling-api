@@ -50,6 +50,7 @@ async def on_startup(ctx: dict[str, Any]) -> None:
 class WorkerSettings:
     functions = [
         jobs.run_generation,
+        jobs.run_template_generation,
         # max_tries=4 → arq retries with exponential backoff (~0s, 2s, 4s,
         # 8s) on raised exceptions, so a transiently-down receiver still
         # eventually gets the callback. 4xx responses don't raise, so a
