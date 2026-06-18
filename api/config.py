@@ -115,6 +115,9 @@ SESSION_LIFETIME_DAYS: int = int(os.getenv("SESSION_LIFETIME_DAYS", "30"))
 # keep False for local-dev HTTP, or browsers reject the cookie silently.
 SESSION_COOKIE_SECURE: bool = os.getenv("SESSION_COOKIE_SECURE", "0") == "1"
 
+# RSA private key (PEM) for decrypting client-encrypted login/signup passwords.
+AUTH_RSA_PRIVATE_KEY_PEM: str = os.getenv("AUTH_RSA_PRIVATE_KEY_PEM", "").strip()
+
 # Prefix tag baked into freshly-minted API keys: "sk_<env>_<32 hex>".
 # Use "live" in production, "test" in staging/dev so leaked keys are
 # obvious in logs.

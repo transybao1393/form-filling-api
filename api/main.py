@@ -32,7 +32,7 @@ from scalar_fastapi import get_scalar_api_reference
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from . import auth_utils, config, db as app_db, job_store, llm_service_client, models, usage
+from . import auth_utils, config, db as app_db, job_store, llm_service_client, models, password_crypto, usage
 from .path_params import JobIdPath
 from .rate_limit import limiter
 from .file_validation import (
@@ -81,6 +81,9 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config.JOBS_DIR.mkdir(parents=True, exist_ok=True)
+    if not config.AUTH_RSA_PRIVATE_KEY_PEM:
+        raise RuntimeError("AUTH_RSA_PRIVATE_KEY_PEM is required")
+    password_crypto.public_key_pem()
     await app_db.init_models()
     pool: ArqRedis = await create_pool(
         RedisSettings(

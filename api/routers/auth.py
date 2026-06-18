@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import auth_utils, config, models
+from .. import auth_utils, config, models, password_crypto
 from ..auth_utils import SESSION_COOKIE_NAME
 from ..db import get_db
 from ..rate_limit import limiter
@@ -20,14 +20,30 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class SignupRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=1, max_length=1024)
     name: str | None = Field(default=None, max_length=120)
     team_name: str | None = Field(default=None, max_length=120)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=1024)
+
+
+def _decrypt_password_field(encrypted: str) -> str:
+    try:
+        plain = password_crypto.decrypt_password(encrypted)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid encrypted password",
+        ) from None
+    if not plain or len(plain) > 128:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid encrypted password",
+        )
+    return plain
 
 
 class UserResponse(BaseModel):
@@ -65,6 +81,14 @@ def _set_session_cookie(response: Response, session_id: str) -> None:
     )
 
 
+@router.get(
+    "/public-key",
+    summary="RSA public key for encrypting passwords on the client",
+)
+async def public_key() -> dict[str, str]:
+    return {"public_key": password_crypto.public_key_pem()}
+
+
 @router.post(
     "/signup",
     response_model=UserResponse,
@@ -78,6 +102,13 @@ async def signup(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
+    plain_password = _decrypt_password_field(body.password)
+    if len(plain_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters",
+        )
+
     existing = await db.execute(
         select(models.User).where(models.User.email == body.email)
     )
@@ -94,7 +125,7 @@ async def signup(
 
     user = models.User(
         email=body.email,
-        password_hash=auth_utils.hash_password(body.password),
+        password_hash=auth_utils.hash_password(plain_password),
         name=body.name,
         team_id=team.id,
         role="Owner",
@@ -121,11 +152,13 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
+    plain_password = _decrypt_password_field(body.password)
+
     result = await db.execute(
         select(models.User).where(models.User.email == body.email)
     )
     user = result.scalar_one_or_none()
-    if user is None or not auth_utils.verify_password(body.password, user.password_hash):
+    if user is None or not auth_utils.verify_password(plain_password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     sess = await auth_utils.create_session(db, user.id)
