@@ -37,8 +37,8 @@ from ..db import get_db
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
-DocumentKind = Literal["template", "reference"]
-_VALID_KINDS = frozenset({"template", "reference"})
+DocumentType = Literal["template", "reference"]
+_VALID_TYPES = frozenset({"template", "reference"})
 
 
 _DOCS_SUBDIR = "_documents"
@@ -54,7 +54,7 @@ class DocumentResponse(BaseModel):
     size_bytes: int
     pages: int | None
     tag: str | None
-    kind: DocumentKind
+    type: DocumentType
     created_at: datetime
     uploaded_by_user_id: int | None
 
@@ -88,7 +88,7 @@ def _to_response(d: models.Document) -> DocumentResponse:
         size_bytes=d.size_bytes,
         pages=d.pages,
         tag=d.tag,
-        kind=d.kind if d.kind in _VALID_KINDS else "reference",
+        type=d.type if d.type in _VALID_TYPES else "reference",
         created_at=d.created_at,
         uploaded_by_user_id=d.uploaded_by_user_id,
     )
@@ -109,7 +109,7 @@ def _count_pdf_pages(path: Path) -> int | None:
     summary="List documents for the current team",
 )
 async def list_documents(
-    kind: DocumentKind | None = None,
+    type: DocumentType | None = None,
     q: str | None = Query(default=None, max_length=120, description="Search name, filename, or tag"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -117,8 +117,8 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
 ) -> DocumentListResponse:
     filters = [models.Document.team_id == user.team_id]
-    if kind is not None:
-        filters.append(models.Document.kind == kind)
+    if type is not None:
+        filters.append(models.Document.type == type)
     if q and q.strip():
         needle = f"%{q.strip().lower()}%"
         filters.append(
@@ -167,18 +167,18 @@ async def list_documents(
 async def upload_document(
     display_name: str | None = Form(default=None, max_length=255),
     tag: str | None = Form(default=None, max_length=64),
-    kind: str = Form(default="reference", max_length=16),
+    type: str = Form(default="reference", max_length=16),
     file: UploadFile = File(..., description="Document to store"),
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="missing filename")
-    doc_kind = kind.strip().lower()
-    if doc_kind not in _VALID_KINDS:
+    doc_type = type.strip().lower()
+    if doc_type not in _VALID_TYPES:
         raise HTTPException(
             status_code=400,
-            detail="kind must be 'template' or 'reference'",
+            detail="type must be 'template' or 'reference'",
         )
     safe = _safe_filename(file.filename)
     now = datetime.now(timezone.utc)
@@ -193,7 +193,7 @@ async def upload_document(
         content_type=file.content_type or "application/octet-stream",
         size_bytes=0,
         tag=tag,
-        kind=doc_kind,
+        type=doc_type,
         storage_path="",
         created_at=now,
     )

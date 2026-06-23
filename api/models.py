@@ -117,7 +117,7 @@ class Document(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pages: Mapped[Optional[int]] = mapped_column(Integer)
     tag: Mapped[Optional[str]] = mapped_column(String(64))
-    kind: Mapped[str] = mapped_column(
+    type: Mapped[str] = mapped_column(
         String(16), nullable=False, default="reference",
     )  # "template" | "reference"
     storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
