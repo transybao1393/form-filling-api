@@ -20,16 +20,12 @@ MAX_CHANNELS = 20
 
 
 def _redis_channel_to_logical(redis_channel: str) -> str | None:
-    if redis_channel.startswith("fp:team:"):
-        return f"team:{redis_channel.removeprefix('fp:team:')}"
-    if redis_channel.startswith("fp:resource:"):
-        rest = redis_channel.removeprefix("fp:resource:")
-        kind, _, resource_id = rest.partition(":")
-        if kind and resource_id:
-            if kind == "job":
-                return f"job:{resource_id}"
-            if kind == "template_task":
-                return f"template_task:{resource_id}"
+    if redis_channel.startswith("fp:user:"):
+        return f"user:{redis_channel.removeprefix('fp:user:')}"
+    if redis_channel.startswith("fp:job:"):
+        return f"job:{redis_channel.removeprefix('fp:job:')}"
+    if redis_channel.startswith("fp:template:"):
+        return f"template:{redis_channel.removeprefix('fp:template:')}"
     return None
 
 
@@ -80,16 +76,16 @@ class ConnectionManager:
     async def can_subscribe(
         self, conn: ClientConnection, channel: str,
     ) -> tuple[bool, str | None]:
-        if channel.startswith("team:"):
+        if channel.startswith("user:"):
             try:
-                team_id = int(channel[5:])
+                user_id = int(channel[5:])
             except ValueError:
-                return False, "Invalid team channel"
+                return False, "Invalid user channel"
             if conn.user is None:
                 if config.AUTH_REQUIRED:
                     return False, "Authentication required"
                 return True, None
-            if conn.user.team_id != team_id:
+            if conn.user.id != user_id:
                 return False, "Forbidden"
             return True, None
 
@@ -107,17 +103,17 @@ class ConnectionManager:
                 return False, "Forbidden"
             return True, None
 
-        if channel.startswith("template_task:"):
-            task_id = channel[14:]
+        if channel.startswith("template:"):
+            task_id = channel[9:]
             meta = template_task_store.get_meta(task_id)
             if meta is None:
-                return False, "Task not found"
-            task_team = meta.get("team_id")
+                return False, "Template task not found"
+            task_user = meta.get("user_id")
             if conn.user is None:
-                if config.AUTH_REQUIRED or task_team is not None:
+                if config.AUTH_REQUIRED or task_user is not None:
                     return False, "Authentication required"
                 return True, None
-            if task_team != conn.user.team_id:
+            if task_user is not None and task_user != conn.user.id:
                 return False, "Forbidden"
             return True, None
 
@@ -192,15 +188,12 @@ class ConnectionManager:
         except json.JSONDecodeError:
             return
 
-        # Team channel: also map to resource channel for subscribers
         targets: set[str] = {logical}
-        if logical.startswith("team:"):
+        if logical.startswith("user:"):
             kind = data.get("kind")
             rid = data.get("id")
-            if kind == "job" and rid:
-                targets.add(f"job:{rid}")
-            elif kind == "template_task" and rid:
-                targets.add(f"template_task:{rid}")
+            if kind == "template" and rid:
+                targets.add(f"template:{rid}")
 
         frame = {"v": 1, "op": "event", "data": data}
         async with self._lock:
@@ -212,15 +205,12 @@ class ConnectionManager:
             conn = self._clients.get(conn_id)
             if conn is None:
                 continue
-            # Determine which channel key the client subscribed via
             client_channel = logical
-            if logical.startswith("team:"):
+            if logical.startswith("user:"):
                 kind = data.get("kind")
                 rid = data.get("id")
-                if kind == "job" and rid and f"job:{rid}" in conn.channels:
-                    client_channel = f"job:{rid}"
-                elif kind == "template_task" and rid and f"template_task:{rid}" in conn.channels:
-                    client_channel = f"template_task:{rid}"
+                if kind == "template" and rid and f"template:{rid}" in conn.channels:
+                    client_channel = f"template:{rid}"
                 elif logical not in conn.channels:
                     continue
             elif logical not in conn.channels:
@@ -256,7 +246,7 @@ manager = ConnectionManager()
 
 
 async def redis_listener_loop(stop_event: asyncio.Event) -> None:
-    """Background task: PSUBSCRIBE fp:team:* and fp:resource:*."""
+    """Background task: PSUBSCRIBE fp:user:*, fp:job:* and fp:template:*."""
     import redis.asyncio as aioredis
 
     backoff = 1.0
@@ -269,7 +259,7 @@ async def redis_listener_loop(stop_event: asyncio.Event) -> None:
                 decode_responses=True,
             )
             pubsub = r.pubsub()
-            await pubsub.psubscribe("fp:team:*", "fp:resource:*")
+            await pubsub.psubscribe("fp:user:*", "fp:job:*", "fp:template:*")
             log.info("redis listener subscribed")
             backoff = 1.0
 

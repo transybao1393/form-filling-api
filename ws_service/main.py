@@ -48,7 +48,13 @@ async def lifespan(app: FastAPI):
     _stop_event = asyncio.Event()
     _redis_task = asyncio.create_task(redis_listener_loop(_stop_event))
     _heartbeat_task = asyncio.create_task(_heartbeat_loop(_stop_event))
-    log.info("ws_service started JOBS_DIR=%s", config.JOBS_DIR)
+    log.info(
+        "ws_service started JOBS_DIR=%s redis=%s:%s cors_origins=%d",
+        config.JOBS_DIR,
+        config.REDIS_HOST,
+        config.REDIS_PORT,
+        len(ws_config.CORS_ALLOWED_ORIGINS),
+    )
 
     yield
 
@@ -101,17 +107,40 @@ async def _send_json(ws: WebSocket, payload: dict[str, Any]) -> None:
 
 @app.websocket("/ws/status")
 async def ws_status(websocket: WebSocket) -> None:
+    origin = auth.get_origin(websocket.scope)
+    client = websocket.client
+
     if not auth.origin_allowed(websocket.scope):
+        log.warning(
+            "ws rejected origin=%s client=%s:%s",
+            origin or "-",
+            client.host if client else "?",
+            client.port if client else "?",
+        )
         await websocket.close(code=1008, reason="Origin not allowed")
         return
 
     user = await auth.authenticate_websocket(websocket.scope)
     if user is None and config.AUTH_REQUIRED:
+        log.warning(
+            "ws rejected unauthenticated client=%s:%s origin=%s",
+            client.host if client else "?",
+            client.port if client else "?",
+            origin or "-",
+        )
         await websocket.close(code=1008, reason="Authentication required")
         return
 
     await websocket.accept()
     conn = await manager.register(websocket, user)
+    log.info(
+        "ws connected conn=%s user=%s team=%s clients=%d origin=%s",
+        conn.connection_id,
+        user.id if user else "anon",
+        user.team_id if user else "-",
+        manager.client_count,
+        origin or "-",
+    )
     try:
         await _send_json(websocket, {
             "v": ws_config.PROTOCOL_VERSION,
@@ -128,7 +157,13 @@ async def ws_status(websocket: WebSocket) -> None:
                 channels = raw.get("channels") or []
                 if not isinstance(channels, list):
                     channels = []
-                frames = await manager.subscribe(conn, [str(c) for c in channels])
+                channel_list = [str(c) for c in channels]
+                log.info(
+                    "ws subscribe conn=%s channels=%s",
+                    conn.connection_id,
+                    channel_list,
+                )
+                frames = await manager.subscribe(conn, channel_list)
                 for frame in frames:
                     await _send_json(websocket, frame)
 
@@ -148,8 +183,13 @@ async def ws_status(websocket: WebSocket) -> None:
                 })
 
     except WebSocketDisconnect:
-        pass
+        log.info("ws disconnected conn=%s", conn.connection_id)
     except Exception:
-        log.debug("ws connection error conn=%s", conn.connection_id, exc_info=True)
+        log.warning("ws connection error conn=%s", conn.connection_id, exc_info=True)
     finally:
         await manager.unregister(conn.connection_id)
+        log.info(
+            "ws closed conn=%s clients=%d",
+            conn.connection_id,
+            manager.client_count,
+        )

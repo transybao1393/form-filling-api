@@ -97,13 +97,24 @@ services:
       JOBS_DIR: /var/lib/form-pipeline/jobs
       AUTH_REQUIRED: ${AUTH_REQUIRED:-0}
       SESSION_LIFETIME_DAYS: ${SESSION_LIFETIME_DAYS:-30}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     volumes:
       - jobs:/var/lib/form-pipeline/jobs
     depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import json,urllib.request,sys
+          d=json.load(urllib.request.urlopen('http://127.0.0.1:8001/healthz',timeout=3))
+          sys.exit(0 if d.get('status')=='ok' else 1)
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   jobs:                              # shared between api + worker

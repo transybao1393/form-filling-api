@@ -27,6 +27,10 @@ def _parse_cookie(cookie_header: str | None, name: str) -> str | None:
     return None
 
 
+def get_origin(scope: dict[str, Any]) -> str | None:
+    return _header_value(scope.get("headers") or [], "origin")
+
+
 async def authenticate_websocket(scope: dict[str, Any]) -> models.User | None:
     headers = scope.get("headers") or []
     cookie_header = _header_value(headers, "cookie")

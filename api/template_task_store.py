@@ -86,7 +86,9 @@ def create(
         "revision": 1,
     }
     _atomic_write_json(state_path(task_id), state)
-    event_bus.publish_template_task_update(task_id, state, team_id)
+    event_bus.publish_template_update(
+        task_id, {**state, "name": name}, user_id,
+    )
     return d
 
 
@@ -145,5 +147,8 @@ def update_state(task_id: str, **kwargs: Any) -> None:
     state["revision"] = int(state.get("revision", 0)) + 1
     _atomic_write_json(p, state)
     meta = get_meta(task_id)
-    team_id = meta.get("team_id") if meta else None
-    event_bus.publish_template_task_update(task_id, state, team_id)
+    user_id = meta.get("user_id") if meta else None
+    payload = dict(state)
+    if meta and meta.get("name"):
+        payload["name"] = meta["name"]
+    event_bus.publish_template_update(task_id, payload, user_id)

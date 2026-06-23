@@ -3,6 +3,8 @@
 Workers and the API publish after every state.json write. The ws_service
 subscribes and fans out to WebSocket clients. Redis Pub/Sub is at-most-once;
 disk/REST remain the source of truth.
+
+WS / Redis channel keys: user, job, template (no team-scoped feeds).
 """
 
 from __future__ import annotations
@@ -37,26 +39,30 @@ def _get_redis():
     return _redis_client
 
 
-def team_channel(team_id: int) -> str:
-    return f"fp:team:{team_id}"
+def user_channel(user_id: int) -> str:
+    return f"fp:user:{user_id}"
 
 
-def resource_channel(kind: str, resource_id: str) -> str:
-    return f"fp:resource:{kind}:{resource_id}"
+def job_channel(job_id: str) -> str:
+    return f"fp:job:{job_id}"
+
+
+def template_channel(task_id: str) -> str:
+    return f"fp:template:{task_id}"
 
 
 def build_envelope(
     *,
     kind: str,
     resource_id: str,
-    team_id: int | None,
+    user_id: int | None,
     state: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "v": 1,
         "kind": kind,
         "id": resource_id,
-        "team_id": team_id,
+        "user_id": user_id,
         "revision": state.get("revision", 0),
         "status": state.get("status"),
         "percent": state.get("percent", 0),
@@ -64,6 +70,7 @@ def build_envelope(
         "stage_text": state.get("stage_text"),
         "error": state.get("error"),
         "template_id": state.get("template_id"),
+        "name": state.get("name"),
         "completed_at": state.get("completed_at"),
         "submitted_at": state.get("submitted_at"),
         "started_at": state.get("started_at"),
@@ -71,40 +78,55 @@ def build_envelope(
     }
 
 
-def publish_status(
-    *,
-    kind: str,
-    resource_id: str,
-    team_id: int | None,
+def publish_job_update(
+    job_id: str,
     state: dict[str, Any],
+    user_id: int | None,
 ) -> None:
-    """Publish to team + resource Redis channels. Never raises."""
+    """Publish to per-job channel. Never raises."""
     envelope = build_envelope(
-        kind=kind,
-        resource_id=resource_id,
-        team_id=team_id,
+        kind="job",
+        resource_id=job_id,
+        user_id=user_id,
         state=state,
     )
     payload = json.dumps(envelope, ensure_ascii=False)
     try:
         r = _get_redis()
-        if team_id is not None:
-            r.publish(team_channel(team_id), payload)
-        r.publish(resource_channel(kind, resource_id), payload)
+        r.publish(job_channel(job_id), payload)
     except Exception:
         log.warning(
-            "event_bus publish failed kind=%s id=%s",
-            kind,
-            resource_id,
+            "event_bus publish failed kind=job id=%s",
+            job_id,
             exc_info=True,
         )
 
 
-def publish_job_update(job_id: str, state: dict[str, Any], team_id: int | None) -> None:
-    publish_status(kind="job", resource_id=job_id, team_id=team_id, state=state)
-
-
-def publish_template_task_update(
-    task_id: str, state: dict[str, Any], team_id: int | None,
+def publish_template_update(
+    task_id: str,
+    state: dict[str, Any],
+    user_id: int | None,
 ) -> None:
-    publish_status(kind="template_task", resource_id=task_id, team_id=team_id, state=state)
+    """Publish to per-user feed + per-template channel. Never raises."""
+    envelope = build_envelope(
+        kind="template",
+        resource_id=task_id,
+        user_id=user_id,
+        state=state,
+    )
+    payload = json.dumps(envelope, ensure_ascii=False)
+    try:
+        r = _get_redis()
+        if user_id is not None:
+            r.publish(user_channel(user_id), payload)
+        r.publish(template_channel(task_id), payload)
+    except Exception:
+        log.warning(
+            "event_bus publish failed kind=template id=%s",
+            task_id,
+            exc_info=True,
+        )
+
+
+# Back-compat alias for callers that still use the old name.
+publish_template_task_update = publish_template_update

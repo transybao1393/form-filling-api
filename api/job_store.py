@@ -104,7 +104,7 @@ def create(
         "revision": 1,
     }
     _atomic_write_json(state_path(job_id), state)
-    event_bus.publish_job_update(job_id, state, team_id)
+    event_bus.publish_job_update(job_id, state, None)
     return d
 
 
@@ -137,8 +137,8 @@ def update_state(job_id: str, **kwargs: Any) -> None:
     state["revision"] = int(state.get("revision", 0)) + 1
     _atomic_write_json(p, state)
     meta = get_meta(job_id)
-    team_id = meta.get("team_id") if meta else None
-    event_bus.publish_job_update(job_id, state, team_id)
+    user_id = meta.get("user_id") if meta else None
+    event_bus.publish_job_update(job_id, state, user_id)
 
 
 def write_result(job_id: str, data: dict[str, Any]) -> None:

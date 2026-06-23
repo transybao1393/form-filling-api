@@ -147,12 +147,16 @@ def _save_upload(upload: UploadFile, dest: FsPath) -> None:
     summary="List templates for the current team",
 )
 async def list_templates(
+    q: str | None = Query(default=None, max_length=120, description="Search template name"),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     user: models.User = Depends(auth_utils.get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TemplateListResponse:
     filters = [models.Template.team_id == user.team_id]
+    if q and q.strip():
+        needle = f"%{q.strip().lower()}%"
+        filters.append(func.lower(models.Template.name).like(needle))
     total = (
         await db.execute(
             select(func.count()).select_from(models.Template).where(*filters)
@@ -171,6 +175,12 @@ async def list_templates(
         team_id=user.team_id,
         statuses={"queued", "running", "failed"},
     )
+    if q and q.strip():
+        needle = q.strip().lower()
+        in_flight = [
+            t for t in in_flight
+            if needle in (t.get("name") or "").lower()
+        ]
     pending = [
         PendingTemplateItem(
             task_id=t["task_id"],
@@ -231,7 +241,7 @@ async def create_template(
             select(models.Document).where(
                 models.Document.id == body.document_id,
                 models.Document.team_id == user.team_id,
-                models.Document.kind == "template",
+                models.Document.type == "template",
             )
         )
         doc = result.scalar_one_or_none()
@@ -302,7 +312,7 @@ async def submit_template_generation(
             select(models.Document).where(
                 models.Document.id == document_id,
                 models.Document.team_id == user.team_id,
-                models.Document.kind == "template",
+                models.Document.type == "template",
             )
         )
         doc = result.scalar_one_or_none()
