@@ -50,3 +50,4 @@ email-validator>=2.0.0
 # (~5 MB), kept in the prod image so tests run inside the same image that's
 # deployed (no separate test image, no venv).
 pytest>=8.0.0
+pytest-asyncio>=0.24.0
