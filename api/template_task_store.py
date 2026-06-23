@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config
+from . import config, event_bus
 
 
 def _now_iso() -> str:
@@ -72,7 +72,7 @@ def create(
         "document_storage_path": document_storage_path,
     })
 
-    _atomic_write_json(state_path(task_id), {
+    state = {
         "task_id": task_id,
         "status": "queued",
         "percent": 0,
@@ -83,7 +83,10 @@ def create(
         "completed_at": None,
         "error": None,
         "template_id": None,
-    })
+        "revision": 1,
+    }
+    _atomic_write_json(state_path(task_id), state)
+    event_bus.publish_template_task_update(task_id, state, team_id)
     return d
 
 
@@ -92,6 +95,38 @@ def get_state(task_id: str) -> dict[str, Any] | None:
     if not p.exists():
         return None
     return json.loads(p.read_text())
+
+
+def list_tasks(
+    *,
+    team_id: int,
+    statuses: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return in-flight template generation tasks for a team, newest first."""
+    root = _root()
+    if not root.exists():
+        return []
+    out: list[dict[str, Any]] = []
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        sp = child / "state.json"
+        mp = child / "meta.json"
+        if not sp.exists() or not mp.exists():
+            continue
+        try:
+            state = json.loads(sp.read_text())
+            meta = json.loads(mp.read_text())
+        except (json.JSONDecodeError, OSError):
+            continue
+        if meta.get("team_id") != team_id:
+            continue
+        st = state.get("status", "queued")
+        if statuses and st not in statuses:
+            continue
+        out.append({**state, **meta})
+    out.sort(key=lambda r: r.get("submitted_at") or "", reverse=True)
+    return out
 
 
 def get_meta(task_id: str) -> dict[str, Any] | None:
@@ -107,4 +142,8 @@ def update_state(task_id: str, **kwargs: Any) -> None:
     p = state_path(task_id)
     state = json.loads(p.read_text()) if p.exists() else {"task_id": task_id}
     state.update(kwargs)
+    state["revision"] = int(state.get("revision", 0)) + 1
     _atomic_write_json(p, state)
+    meta = get_meta(task_id)
+    team_id = meta.get("team_id") if meta else None
+    event_bus.publish_template_task_update(task_id, state, team_id)

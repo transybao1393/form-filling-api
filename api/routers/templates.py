@@ -83,6 +83,19 @@ class TemplateListResponse(BaseModel):
     limit: int
     offset: int
     items: list[TemplateResponse]
+    pending: list["PendingTemplateItem"] = Field(default_factory=list)
+
+
+class PendingTemplateItem(BaseModel):
+    task_id: str
+    name: str
+    status: str
+    percent: int = 0
+    stage_text: str = ""
+    submitted_at: str
+
+
+TemplateListResponse.model_rebuild()
 
 
 class TemplateGenerationSubmitResponse(BaseModel):
@@ -153,11 +166,29 @@ async def list_templates(
         .limit(limit)
     )
     items = [_to_response(t) for t in result.scalars()]
+
+    in_flight = template_task_store.list_tasks(
+        team_id=user.team_id,
+        statuses={"queued", "running", "failed"},
+    )
+    pending = [
+        PendingTemplateItem(
+            task_id=t["task_id"],
+            name=t.get("name") or "New template",
+            status=t.get("status") or "queued",
+            percent=int(t.get("percent") or 0),
+            stage_text=t.get("stage_text") or "",
+            submitted_at=t.get("submitted_at") or "",
+        )
+        for t in in_flight
+    ]
+
     return TemplateListResponse(
         total=total,
         limit=limit,
         offset=offset,
         items=items,
+        pending=pending,
     )
 
 

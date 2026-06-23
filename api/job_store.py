@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config
+from . import config, event_bus
 
 
 log = logging.getLogger("api.job_store")
@@ -91,7 +91,7 @@ def create(
         "team_id": team_id,
     })
 
-    _atomic_write_json(state_path(job_id), {
+    state = {
         "job_id": job_id,
         "status": "queued",
         "percent": 0,
@@ -101,7 +101,10 @@ def create(
         "started_at": None,
         "completed_at": None,
         "error": None,
-    })
+        "revision": 1,
+    }
+    _atomic_write_json(state_path(job_id), state)
+    event_bus.publish_job_update(job_id, state, team_id)
     return d
 
 
@@ -131,7 +134,11 @@ def update_state(job_id: str, **kwargs: Any) -> None:
     p = state_path(job_id)
     state = json.loads(p.read_text()) if p.exists() else {"job_id": job_id}
     state.update(kwargs)
+    state["revision"] = int(state.get("revision", 0)) + 1
     _atomic_write_json(p, state)
+    meta = get_meta(job_id)
+    team_id = meta.get("team_id") if meta else None
+    event_bus.publish_job_update(job_id, state, team_id)
 
 
 def write_result(job_id: str, data: dict[str, Any]) -> None:
