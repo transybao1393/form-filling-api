@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 import httpx
-
+import asyncio
 from . import config
 
 
@@ -29,49 +29,54 @@ async def chat(
     `think: false` disables Qwen3's reasoning trace on Ollama 0.4+. We also
     append `/no_think` in the system prompt (see prompts.py) for older builds.
     """
-    body: dict[str, Any] = {
-        "model": config.OLLAMA_MODEL,
-        "messages": messages,
-        "stream": False,
-        "think": False,
-        "options": {
-            "temperature": config.OLLAMA_TEMPERATURE,
-            "num_ctx": config.OLLAMA_NUM_CTX,
-        },
-    }
-    if json_format:
-        body["format"] = "json"
+    sem = asyncio.Semaphore(config.OLLAMA_NUM_PARALLEL)
+    async with sem:
+        body: dict[str, Any] = {
+            "model": config.OLLAMA_MODEL,
+            "messages": messages,
+            "stream": False,
+            "think": False,
+            "keep_alive": config.OLLAMA_KEEP_ALIVE,
+            "options": {
+                "temperature": config.OLLAMA_TEMPERATURE,
+                "num_ctx": config.OLLAMA_NUM_CTX,
+                "num_predict": config.OLLAMA_NUM_PREDICT,
+                "num_thread": config.OLLAMA_NUM_THREAD,
+            },
+        }
+        if json_format:
+            body["format"] = "json"
 
-    url = f"{config.OLLAMA_URL}/api/chat"
-    total_chars = sum(len(m.get("content", "")) for m in messages)
-    log.info(
-        "ollama: POST %s model=%s num_ctx=%d input_chars=%d (~%d tok)",
-        url, config.OLLAMA_MODEL, config.OLLAMA_NUM_CTX,
-        total_chars, total_chars // 4,
-    )
-    async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
-        try:
-            r = await client.post(url, json=body)
-        except httpx.HTTPError as e:
-            # httpx.ReadTimeout/PoolTimeout often have empty str(e); include
-            # the exception class so the failure mode is identifiable.
-            raise OllamaError(
-                f"failed to reach Ollama at {url}: "
-                f"{type(e).__name__}: {e or '(no message)'}"
-            ) from e
-
-    if r.status_code != 200:
-        raise OllamaError(
-            f"Ollama returned {r.status_code}: {r.text[:500]}"
+        url = f"{config.OLLAMA_URL}/api/chat"
+        total_chars = sum(len(m.get("content", "")) for m in messages)
+        log.info(
+            "ollama: POST %s model=%s num_ctx=%d input_chars=%d (~%d tok)",
+            url, config.OLLAMA_MODEL, config.OLLAMA_NUM_CTX,
+            total_chars, total_chars // 4,
         )
+        async with httpx.AsyncClient(timeout=config.OLLAMA_TIMEOUT) as client:
+            try:
+                r = await client.post(url, json=body)
+            except httpx.HTTPError as e:
+                # httpx.ReadTimeout/PoolTimeout often have empty str(e); include
+                # the exception class so the failure mode is identifiable.
+                raise OllamaError(
+                    f"failed to reach Ollama at {url}: "
+                    f"{type(e).__name__}: {e or '(no message)'}"
+                ) from e
 
-    payload = r.json()
-    _log_timings(payload)
-    msg = payload.get("message") or {}
-    content = msg.get("content")
-    if not isinstance(content, str):
-        raise OllamaError(f"unexpected Ollama payload: {json.dumps(payload)[:500]}")
-    return content
+        if r.status_code != 200:
+            raise OllamaError(
+                f"Ollama returned {r.status_code}: {r.text[:500]}"
+            )
+
+        payload = r.json()
+        _log_timings(payload)
+        msg = payload.get("message") or {}
+        content = msg.get("content")
+        if not isinstance(content, str):
+            raise OllamaError(f"unexpected Ollama payload: {json.dumps(payload)[:500]}")
+        return content
 
 
 def _log_timings(payload: dict[str, Any]) -> None:
