@@ -58,6 +58,40 @@ JobStage = Literal[
 ]
 
 
+class GenerateValuesRequest(BaseModel):
+    template_id: int = Field(..., ge=1, description="Saved template (field schema) to fill")
+    document_ids: list[int] = Field(
+        ...,
+        min_length=1,
+        description="Reference document IDs (from GET /documents?type=reference)",
+    )
+    questionnaire_title: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Optional title override; defaults to the template name",
+    )
+    webhook_url: str | None = Field(
+        default=None,
+        description=(
+            "Optional callback URL (http:// or https://). When set, the API "
+            "POSTs the terminal-state payload on completion and failure."
+        ),
+    )
+
+
+class GenerateTemplateRequest(BaseModel):
+    document_id: int = Field(
+        ...,
+        ge=1,
+        description="Template form document ID (from GET /documents?type=template)",
+    )
+    name: str | None = Field(
+        default=None,
+        max_length=160,
+        description="Template name (defaults from document display name or filename)",
+    )
+
+
 class JobSubmitResponse(BaseModel):
     job_id: str
     status: JobStatus = "queued"
@@ -78,6 +112,13 @@ class JobStatusResponse(BaseModel):
     completed_at: str | None = None
     error: str | None = None
     download_url: str | None = None
+    questionnaire_filename: str | None = None
+    reference_filenames: list[str] = []
+    questionnaire_title: str | None = None
+    has_webhook: bool = False
+    template_id: int | None = None
+    document_ids: list[int] = []
+    status_url: str | None = None
 
 
 class WebhookPayload(BaseModel):
