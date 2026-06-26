@@ -469,6 +469,7 @@ async def submit_job(
         questionnaire_title=questionnaire_title,
         webhook_url=webhook_url,
         team_id=current_user.team_id if current_user is not None else None,
+        user_id=current_user.id if current_user is not None else None,
     )
 
     pool: ArqRedis = app.state.arq

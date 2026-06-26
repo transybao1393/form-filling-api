@@ -212,6 +212,7 @@ async def submit_generate_values(
         questionnaire_title=questionnaire_title,
         webhook_url=webhook_url,
         team_id=current_user.team_id,
+        user_id=current_user.id,
     )
 
     pool = request.app.state.arq

@@ -72,6 +72,7 @@ def create(
     questionnaire_title: str | None,
     webhook_url: str | None = None,
     team_id: int | None = None,
+    user_id: int | None = None,
 ) -> Path:
     """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/.
 
@@ -89,6 +90,7 @@ def create(
         "questionnaire_title": questionnaire_title,
         "webhook_url": webhook_url,
         "team_id": team_id,
+        "user_id": user_id,
     })
 
     state = {
@@ -104,7 +106,7 @@ def create(
         "revision": 1,
     }
     _atomic_write_json(state_path(job_id), state)
-    event_bus.publish_job_update(job_id, state, None)
+    event_bus.publish_job_update(job_id, state, user_id)
     return d
 
 
@@ -118,6 +120,7 @@ def create_v2(
     questionnaire_title: str | None = None,
     webhook_url: str | None = None,
     team_id: int | None = None,
+    user_id: int | None = None,
 ) -> Path:
     """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/.
 
@@ -135,6 +138,7 @@ def create_v2(
         "questionnaire_title": questionnaire_title,
         "webhook_url": webhook_url,
         "team_id": team_id,
+        "user_id": user_id,
     }
     if questionnaire_filename is not None:
         meta["questionnaire_filename"] = questionnaire_filename
@@ -157,7 +161,7 @@ def create_v2(
         "revision": 1,
     }
     _atomic_write_json(state_path(job_id), state)
-    event_bus.publish_job_update(job_id, state, None)
+    event_bus.publish_job_update(job_id, state, user_id)
     return d
 
 
