@@ -49,6 +49,8 @@ from .routers import (
     auth as auth_router,
     billing as billing_router,
     documents as documents_router,
+    generate_template as generate_template_router,
+    generate_values as generate_values_router,
     review as review_router,
     team as team_router,
     templates as templates_router,
@@ -256,6 +258,8 @@ app.include_router(auth_router.router)
 app.include_router(api_keys_router.router)
 app.include_router(templates_router.router)
 app.include_router(documents_router.router)
+app.include_router(generate_values_router.router)
+app.include_router(generate_template_router.router)
 app.include_router(review_router.router)
 app.include_router(team_router.router)
 app.include_router(webhooks_router.router)
@@ -465,6 +469,7 @@ async def submit_job(
         questionnaire_title=questionnaire_title,
         webhook_url=webhook_url,
         team_id=current_user.team_id if current_user is not None else None,
+        user_id=current_user.id if current_user is not None else None,
     )
 
     pool: ArqRedis = app.state.arq
@@ -583,11 +588,17 @@ async def get_job_status(
     if state is None:
         raise HTTPException(status_code=404, detail=f"unknown job_id={job_id!r}")
     _check_job_access(job_id, current_user)
+    meta = job_store.get_meta(job_id) or {}
+    row = job_store.enrich_with_meta(state, meta)
     download_url = (
         f"/jobs/{job_id}/data.json"
         if state.get("status") in _RESULT_AVAILABLE_STATUSES else None
     )
-    return JobStatusResponse(download_url=download_url, **state)
+    return JobStatusResponse(
+        download_url=download_url,
+        status_url=f"/jobs/{job_id}",
+        **row,
+    )
 
 
 @app.delete(

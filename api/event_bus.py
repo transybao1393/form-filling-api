@@ -94,6 +94,8 @@ def publish_job_update(
     try:
         r = _get_redis()
         r.publish(job_channel(job_id), payload)
+        if user_id is not None:
+            r.publish(user_channel(user_id), payload)
     except Exception:
         log.warning(
             "event_bus publish failed kind=job id=%s",

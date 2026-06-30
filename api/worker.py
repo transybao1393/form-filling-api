@@ -19,7 +19,7 @@ from arq import cron
 from arq.connections import RedisSettings
 from arq.worker import func
 
-from . import config, db as app_db, job_store, jobs
+from . import config, db as app_db, job_store, jobs, jobs_v2
 
 
 log = logging.getLogger("api.worker")
@@ -50,6 +50,8 @@ async def on_startup(ctx: dict[str, Any]) -> None:
 class WorkerSettings:
     functions = [
         jobs.run_generation,
+        jobs_v2.run_generation_v2,
+        jobs_v2.run_template_generation_v2,
         jobs.run_template_generation,
         # max_tries=4 → arq retries with exponential backoff (~0s, 2s, 4s,
         # 8s) on raised exceptions, so a transiently-down receiver still

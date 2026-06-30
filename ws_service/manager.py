@@ -194,6 +194,8 @@ class ConnectionManager:
             rid = data.get("id")
             if kind == "template" and rid:
                 targets.add(f"template:{rid}")
+            elif kind == "job" and rid:
+                targets.add(f"job:{rid}")
 
         frame = {"v": 1, "op": "event", "data": data}
         async with self._lock:
@@ -211,6 +213,8 @@ class ConnectionManager:
                 rid = data.get("id")
                 if kind == "template" and rid and f"template:{rid}" in conn.channels:
                     client_channel = f"template:{rid}"
+                elif kind == "job" and rid and f"job:{rid}" in conn.channels:
+                    client_channel = f"job:{rid}"
                 elif logical not in conn.channels:
                     continue
             elif logical not in conn.channels:
