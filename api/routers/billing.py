@@ -13,7 +13,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -264,13 +264,10 @@ async def _checkout_payos(
             detail="PayOS not configured on this server",
         )
     amount = plan_def["monthly_vnd"]
-    # PayOS orderCode must be a positive int <= 9_007_199_254_740_992 and
-    # unique per merchant. Mix wall-clock seconds + team_id + a 3-digit
-    # random suffix so two checkouts inside the same second for the same
-    # team can't collide. secrets.randbelow is uniform; randint isn't
-    # crypto-safe but doesn't need to be (we only need collision avoidance).
+    # PayOS orderCode <= 9_007_199_254_740_991 — pack 4+4+3 digits (time/team/random).
     order_code = int(
-        f"{int(time.time())}{user.team_id % 10_000:04d}"
+        f"{int(time.time()) % 10_000:04d}"
+        f"{user.team_id % 10_000:04d}"
         f"{secrets.randbelow(1000):03d}"
     )
     description = f"{plan_def['name']} — team {user.team_id}"
