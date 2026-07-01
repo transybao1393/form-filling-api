@@ -42,6 +42,16 @@ services:
       SESSION_LIFETIME_DAYS: ${SESSION_LIFETIME_DAYS:-30}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
       AUTH_RSA_PRIVATE_KEY_PEM: ${AUTH_RSA_PRIVATE_KEY_PEM:?AUTH_RSA_PRIVATE_KEY_PEM is required}
+      # Billing — checkout redirects to APP_BASE_URL/billing/return|cancel
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      PAYOS_CLIENT_ID: ${PAYOS_CLIENT_ID:-}
+      PAYOS_API_KEY: ${PAYOS_API_KEY:-}
+      PAYOS_CHECKSUM_KEY: ${PAYOS_CHECKSUM_KEY:-}
+      PAYOS_API_BASE: ${PAYOS_API_BASE:-https://api-merchant.payos.vn}
+      PAYHIP_API_KEY: ${PAYHIP_API_KEY:-}
+      PAYHIP_WEBHOOK_SECRET: ${PAYHIP_WEBHOOK_SECRET:-}
+      PAYHIP_PRODUCT_LINK_PRO: ${PAYHIP_PRODUCT_LINK_PRO:-}
+      PAYHIP_PRODUCT_LINK_SCALE: ${PAYHIP_PRODUCT_LINK_SCALE:-}
     volumes:
       - jobs:/var/lib/form-pipeline/jobs
     depends_on:
