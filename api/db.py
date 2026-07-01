@@ -65,6 +65,20 @@ async def init_models() -> None:
     config.JOBS_DIR.mkdir(parents=True, exist_ok=True)
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _migrate_templates_source_document_id(conn)
+
+
+async def _migrate_templates_source_document_id(conn) -> None:
+    """Add templates.source_document_id on existing SQLite DBs."""
+    if not config.DATABASE_URL.startswith("sqlite"):
+        return
+    result = await conn.exec_driver_sql("PRAGMA table_info(templates)")
+    columns = {row[1] for row in result.fetchall()}
+    if "source_document_id" not in columns:
+        await conn.exec_driver_sql(
+            "ALTER TABLE templates ADD COLUMN source_document_id INTEGER "
+            "REFERENCES documents(id) ON DELETE SET NULL"
+        )
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:

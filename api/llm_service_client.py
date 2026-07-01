@@ -133,6 +133,68 @@ async def generate(
     )
 
 
+async def extract_fields(
+    questionnaire_text: str,
+    questionnaire_title: str | None = None,
+) -> dict[str, Any]:
+    """POST /extract-fields on the llm_service. Returns the `data` dict."""
+    body = {
+        "questionnaire_text": questionnaire_text,
+        "questionnaire_title": questionnaire_title,
+    }
+    url = f"{config.LLM_SERVICE_URL}/extract-fields"
+
+    attempts = _RETRY_ON_502 + 1
+    last_detail: str | None = None
+    for attempt in range(1, attempts + 1):
+        log.info(
+            "llm_service: POST %s extract-fields (attempt %d/%d)",
+            url, attempt, attempts,
+        )
+        try:
+            async with httpx.AsyncClient(timeout=config.LLM_SERVICE_TIMEOUT) as client:
+                r = await client.post(url, json=body)
+        except httpx.HTTPError as e:
+            raise LLMServiceUnavailable(
+                f"could not reach llm_service at {url}: "
+                f"{type(e).__name__}: {e or '(no message)'}"
+            ) from e
+
+        if r.status_code == 200:
+            payload = r.json()
+            data = payload.get("data")
+            if not isinstance(data, dict):
+                raise LLMServiceError(
+                    f"unexpected llm_service payload (no `data` object): "
+                    f"{str(payload)[:500]}"
+                )
+            return data
+
+        if r.status_code == 502 and attempt < attempts:
+            last_detail = _parse_upstream_detail(r.text)
+            backoff = _RETRY_BACKOFF_S * (2 ** (attempt - 1))
+            log.warning(
+                "llm_service: 502 upstream hiccup (attempt %d/%d): %s "
+                "— retrying in %.1fs",
+                attempt, attempts, last_detail, backoff,
+            )
+            await asyncio.sleep(backoff)
+            continue
+
+        detail = _parse_upstream_detail(r.text)
+        if r.status_code == 502:
+            raise LLMServiceUpstreamError(
+                f"upstream LLM failed after {attempts} attempts: {detail}"
+            )
+        raise LLMServiceError(
+            f"llm_service returned HTTP {r.status_code}: {detail}"
+        )
+
+    raise LLMServiceUpstreamError(
+        f"upstream LLM failed after {attempts} attempts: {last_detail or '(no detail)'}"
+    )
+
+
 async def health() -> dict[str, Any]:
     """Probe llm_service /healthz. Returns the parsed body on success, or
     a synthetic `{"ollama": "down", "model": ""}` shape on any failure so

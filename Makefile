@@ -211,9 +211,14 @@ docker-setup:
 
 docker-up:
 	docker compose up -d
-	@printf "Waiting for /healthz "
+	@printf "Waiting for API /healthz "
 	@for i in 1 2 3 4 5 6 7 8 9 10; do \
 	  curl -sf http://localhost:8000/healthz >/dev/null 2>&1 && { echo " ok"; break; }; \
+	  printf "."; sleep 2; \
+	done
+	@printf "Waiting for WS /healthz "
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  curl -sf http://localhost:8001/healthz >/dev/null 2>&1 && { echo " ok"; break; }; \
 	  printf "."; sleep 2; \
 	done
 	@$(MAKE) docker-test
@@ -221,7 +226,8 @@ docker-up:
 	@echo "Stack ready:"
 	@echo "  Scalar API reference : http://localhost:8000/scalar"
 	@echo "  Swagger UI           : http://localhost:8000/docs"
-	@echo "  Health               : http://localhost:8000/healthz"
+	@echo "  API health           : http://localhost:8000/healthz"
+	@echo "  WS health            : http://localhost:8001/healthz"
 
 docker-test:
 	docker compose run --rm \

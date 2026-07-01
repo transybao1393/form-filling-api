@@ -35,6 +35,8 @@ COPY run_pipeline.py field_detector.py field_normalizer.py \
 COPY fonts/ /app/fonts/
 
 COPY api/ /app/api/
+COPY ws_service/ /app/ws_service/
+COPY pytest.ini /app/pytest.ini
 
 ENV PYTHONUNBUFFERED=1 \
     LLM_SERVICE_URL=http://host.docker.internal:11500 \

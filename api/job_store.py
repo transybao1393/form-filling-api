@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config
+from . import config, event_bus
 
 
 log = logging.getLogger("api.job_store")
@@ -72,6 +72,7 @@ def create(
     questionnaire_title: str | None,
     webhook_url: str | None = None,
     team_id: int | None = None,
+    user_id: int | None = None,
 ) -> Path:
     """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/.
 
@@ -89,9 +90,10 @@ def create(
         "questionnaire_title": questionnaire_title,
         "webhook_url": webhook_url,
         "team_id": team_id,
+        "user_id": user_id,
     })
 
-    _atomic_write_json(state_path(job_id), {
+    state = {
         "job_id": job_id,
         "status": "queued",
         "percent": 0,
@@ -101,7 +103,65 @@ def create(
         "started_at": None,
         "completed_at": None,
         "error": None,
-    })
+        "revision": 1,
+    }
+    _atomic_write_json(state_path(job_id), state)
+    event_bus.publish_job_update(job_id, state, user_id)
+    return d
+
+
+def create_v2(
+    job_id: str,
+    *,
+    template_id: int,
+    document_ids: list[int],
+    questionnaire_filename: str | None = None,
+    reference_filenames: list[str] | None = None,
+    questionnaire_title: str | None = None,
+    webhook_url: str | None = None,
+    team_id: int | None = None,
+    user_id: int | None = None,
+) -> Path:
+    """Create JOBS_DIR/<job_id>/ with initial state.json + meta.json + uploads/.
+
+    `team_id` scopes the job to a Team (Phase 2 onwards). None means the job
+    was created by an unauthenticated client (legacy / AUTH_REQUIRED=0) and
+    is only visible to other unauthenticated callers.
+    """
+    d = job_dir(job_id)
+    (d / "uploads").mkdir(parents=True, exist_ok=True)
+
+    meta: dict[str, Any] = {
+        "job_id": job_id,
+        "template_id": template_id,
+        "document_ids": document_ids,
+        "questionnaire_title": questionnaire_title,
+        "webhook_url": webhook_url,
+        "team_id": team_id,
+        "user_id": user_id,
+    }
+    if questionnaire_filename is not None:
+        meta["questionnaire_filename"] = questionnaire_filename
+    if reference_filenames is not None:
+        meta["reference_filenames"] = reference_filenames
+    _atomic_write_json(meta_path(job_id), meta)
+
+    state = {
+        "job_id": job_id,
+        "status": "queued",
+        "percent": 0,
+        "stage": "queued",
+        "stage_text": "Queued, waiting for worker",
+        "submitted_at": _now_iso(),
+        "started_at": None,
+        "completed_at": None,
+        "error": None,
+        "template_id": template_id,
+        "document_ids": document_ids,
+        "revision": 1,
+    }
+    _atomic_write_json(state_path(job_id), state)
+    event_bus.publish_job_update(job_id, state, user_id)
     return d
 
 
@@ -119,6 +179,20 @@ def get_meta(job_id: str) -> dict[str, Any] | None:
     return json.loads(p.read_text())
 
 
+def enrich_with_meta(state: dict[str, Any], meta: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge meta.json fields into a state record for API responses."""
+    meta = meta or {}
+    return {
+        **state,
+        "questionnaire_filename": meta.get("questionnaire_filename"),
+        "reference_filenames": meta.get("reference_filenames") or [],
+        "questionnaire_title": meta.get("questionnaire_title"),
+        "has_webhook": bool(meta.get("webhook_url")),
+        "template_id": meta.get("template_id") or state.get("template_id"),
+        "document_ids": meta.get("document_ids") or state.get("document_ids") or [],
+    }
+
+
 def update_state(job_id: str, **kwargs: Any) -> None:
     """Merge kwargs into state.json atomically.
 
@@ -131,7 +205,11 @@ def update_state(job_id: str, **kwargs: Any) -> None:
     p = state_path(job_id)
     state = json.loads(p.read_text()) if p.exists() else {"job_id": job_id}
     state.update(kwargs)
+    state["revision"] = int(state.get("revision", 0)) + 1
     _atomic_write_json(p, state)
+    meta = get_meta(job_id)
+    user_id = meta.get("user_id") if meta else None
+    event_bus.publish_job_update(job_id, state, user_id)
 
 
 def write_result(job_id: str, data: dict[str, Any]) -> None:
@@ -233,14 +311,7 @@ def list_jobs(
         elif isinstance(team_id, int):
             if meta_team != team_id:
                 continue
-        out.append({
-            **state,
-            "questionnaire_filename": meta.get("questionnaire_filename"),
-            "reference_filenames": meta.get("reference_filenames") or [],
-            "questionnaire_title": meta.get("questionnaire_title"),
-            "has_webhook": bool(meta.get("webhook_url")),
-            "team_id": meta_team,
-        })
+        out.append({**enrich_with_meta(state, meta), "team_id": meta_team})
     out.sort(key=lambda r: r.get("submitted_at") or "", reverse=True)
     return out
 

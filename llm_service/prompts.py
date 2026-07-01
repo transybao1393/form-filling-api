@@ -132,6 +132,57 @@ def build_messages(
     ]
 
 
+EXTRACT_FIELDS_SYSTEM_PROMPT = """/no_think
+You are an expert form-analysis assistant. Read the QUESTIONNAIRE block and \
+produce a JSON object listing every fillable field / question it contains. \
+Do NOT invent answers — every item must use the sentinel triple: \
+`extracted_answer="-"`, `source_file="N/A"`, `confidence="NONE"`.
+
+Return JSON that matches this exact schema:
+
+{
+  "questionnaire_title": "string",
+  "items": [
+    {
+      "contextualized_question": "string",
+      "source_file": "N/A",
+      "question": "string",
+      "question_number": "F1",
+      "extracted_answer": "-",
+      "confidence": "NONE"
+    }
+  ]
+}
+
+# Hard rules
+
+1. **Questions come ONLY from the QUESTIONNAIRE block.** Never invent questions.
+2. **Numbering**: sequential `F1`, `F2`, `F3`, ... in order of appearance.
+3. **`question` is the SHORT TOPIC LABEL** — maximum 8 words / ~50 characters.
+4. **`contextualized_question` is the FULL self-contained sentence**, ending with `?`.
+5. **Never fill answers** — always `extracted_answer="-"`, `source_file="N/A"`, \
+`confidence="NONE"`.
+6. **`questionnaire_title`**: if the user supplied one, use it verbatim; otherwise \
+propose one from the form heading.
+7. Output VALID JSON only — no prose, no markdown fences."""
+
+
+def build_extract_fields_messages(
+    questionnaire_text: str,
+    questionnaire_title: str | None,
+) -> list[dict[str, str]]:
+    parts: list[str] = []
+    if questionnaire_title:
+        parts.append(f"questionnaire_title (use verbatim): {questionnaire_title}")
+        parts.append("")
+    parts.append("=== QUESTIONNAIRE ===")
+    parts.append(_truncate(questionnaire_text, config.MAX_CHARS_PER_QUESTIONNAIRE))
+    return [
+        {"role": "system", "content": EXTRACT_FIELDS_SYSTEM_PROMPT},
+        {"role": "user", "content": "\n".join(parts)},
+    ]
+
+
 def build_repair_messages(
     original: list[dict[str, str]],
     bad_output: str,

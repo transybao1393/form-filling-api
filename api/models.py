@@ -91,6 +91,9 @@ class Template(Base):
     )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     source_job_id: Mapped[Optional[str]] = mapped_column(String(64))
+    source_document_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"),
+    )
     field_schema: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     uses: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     accuracy: Mapped[Optional[float]] = mapped_column(Float)

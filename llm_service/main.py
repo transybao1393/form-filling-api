@@ -20,6 +20,8 @@ from fastapi.responses import StreamingResponse
 
 from . import bootstrap, config, normalize, ollama_client, prompts, util
 from .schemas import (
+    ExtractFieldsRequest,
+    ExtractFieldsResponse,
     GenerateRequest,
     GenerateResponse,
     HealthResponse,
@@ -94,6 +96,43 @@ async def generate(req: GenerateRequest) -> GenerateResponse:
         item.question_number = f"F{i}"
 
     return GenerateResponse(data=data)
+
+
+@app.post("/extract-fields", response_model=ExtractFieldsResponse)
+async def extract_fields(req: ExtractFieldsRequest) -> ExtractFieldsResponse:
+    """Extract field list from a form document (no reference docs)."""
+    messages = prompts.build_extract_fields_messages(
+        req.questionnaire_text, req.questionnaire_title
+    )
+
+    try:
+        raw = await ollama_client.chat(messages)
+        raw = util.clean_json_output(raw)
+    except ollama_client.OllamaError as e:
+        log.warning("ollama call failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"ollama: {e}") from e
+
+    try:
+        data = await normalize.parse_and_validate(raw, messages)
+    except Exception as e:
+        log.exception("parse_and_validate failed after repair")
+        raise HTTPException(
+            status_code=502,
+            detail=f"model output failed validation: {type(e).__name__}: {e}",
+        ) from e
+
+    if req.questionnaire_title:
+        data.questionnaire_title = req.questionnaire_title
+
+    normalize.normalize(data, set())
+
+    for i, item in enumerate(data.items, start=1):
+        item.question_number = f"F{i}"
+        item.extracted_answer = "-"
+        item.source_file = "N/A"
+        item.confidence = "NONE"
+
+    return ExtractFieldsResponse(data=data)
 
 
 @app.get("/healthz", response_model=HealthResponse)
