@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-Confidence = Literal["HIGH", "MEDIUM", "NONE"]
+Confidence = Literal["HIGH", "MEDIUM", "NONE", "USER"]
 
 
 class Item(BaseModel):
