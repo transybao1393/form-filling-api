@@ -1,7 +1,7 @@
 """Per-field and whole-job review approval for jobs in `review` status.
 
 A field approval rewrites result.json: the item's confidence is bumped from
-NONE → MEDIUM (and the value substituted if `value` is supplied), and a
+NONE → MEDIUM (or USER when the caller supplies an explicit `value`), and a
 FieldApproval audit row is logged. When the last NONE item is resolved, or
 when POST /jobs/{job_id}/approve fires en masse, state.json transitions
 review → completed.
@@ -151,10 +151,17 @@ async def approve_field(
     new_value = body.value if body.value is not None else (target.get("extracted_answer") or "")
     if new_value == "-" or new_value == "":
         new_value = ""
+    original_raw = target.get("extracted_answer") or ""
+    original_display = "" if original_raw in ("", "-") else original_raw
+    user_filled = body.value is not None and body.value != original_display
     target["extracted_answer"] = new_value or "-"
     if body.source_file is not None:
         target["source_file"] = body.source_file or "N/A"
-    if target.get("confidence") == "NONE":
+    if not new_value:
+        target["confidence"] = "NONE"
+    elif user_filled:
+        target["confidence"] = "USER"
+    elif target.get("confidence") == "NONE":
         target["confidence"] = "MEDIUM"
     job_store.write_result(job_id, result)
 
@@ -198,6 +205,8 @@ async def approve_job(
     for item in result.get("items", []):
         qn = item.get("question_number") or ""
         override = body.overrides.get(qn)
+        original_raw = item.get("extracted_answer") or ""
+        original_display = "" if original_raw in ("", "-") else original_raw
         if override is not None:
             item["extracted_answer"] = override or "-"
         if item.get("confidence") == "NONE":
@@ -206,7 +215,8 @@ async def approve_job(
                 # approved so the job can complete. The audit row preserves
                 # who consciously approved an empty value.
                 item["extracted_answer"] = "-"
-            item["confidence"] = "MEDIUM"
+            user_filled = override is not None and override != original_display
+            item["confidence"] = "USER" if user_filled else "MEDIUM"
             approved += 1
             db.add(
                 models.FieldApproval(
